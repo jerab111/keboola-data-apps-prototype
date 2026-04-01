@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keboola Data Apps</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        dark: '#1a1a2e',
+        kblue: '#1F8FFF',
+        'kblue-light': '#EBF4FF',
+        'kblue-hover': '#1a7de6',
+        kgreen: '#4CAF50',
+        'kgreen-light': '#e8f5e9',
+        'kgreen-hover': '#43a047',
+        'kgreen-bg': '#e6f4ea',
+        kyellow: '#F57C00',
+        'kyellow-bg': '#fff3e0',
+        kred: '#E53935',
+        'kred-bg': '#fce8e6',
+        kpurple: '#7B1FA2',
+        'kpurple-bg': '#f3e8ff',
+        'kpurple-light': '#ede7f6',
+        kgray: { 50: '#ffffff', 75: '#fdfdfd', 100: '#f8f8f8', 200: '#e6e6e6', 300: '#d5d5d5', 400: '#b1b1b1', 500: '#909090', 600: '#6d6d6d', 700: '#464646', 800: '#222222', 900: '#000000' },
+        kborder: '#e6e6e6',
+        ktext: '#222222',
+        kbg: '#f8f8f8',
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+      },
+    },
+  },
+}
+</script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #222; background: #f8f8f8; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d5d5d5; border-radius: 3px; }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; position: relative; cursor: pointer; transition: .2s; }
+  .toggle::after { content: ''; width: 16px; height: 16px; border-radius: 50%; background: #fff; position: absolute; top: 2px; left: 2px; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .toggle.on { background: #4CAF50; }
+  .toggle.off { background: #d5d5d5; }
+  .toggle.on::after { left: 18px; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes typing { 0%,80%,100% { opacity:.4; } 40% { opacity:1; } }
+  @keyframes progressBuild { from { width: 0; } to { width: 100%; } }
+  .screen-enter { animation: fadeIn .2s ease; }
+  .msg-enter { animation: fadeInUp .3s ease both; }
+  .sparkline-bar { min-height: 1px; border-radius: 1px; background: #1F8FFF; opacity: .6; }
+  .log-line { font-family: 'JetBrains Mono', Menlo, monospace; }
+  /* Keboola sidebar */
+  .k-nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; margin: 1px 8px; border-radius: 6px; font-size: 13px; color: #464646; cursor: pointer; transition: all .12s; font-weight: 500; }
+  .k-nav-item:hover { background: #EBF4FF; color: #1F8FFF; }
+  .k-nav-item.active { background: #EBF4FF; color: #1F8FFF; font-weight: 600; }
+  .k-nav-item svg { width: 20px; height: 20px; flex-shrink: 0; color: #909090; }
+  .k-nav-item:hover svg, .k-nav-item.active svg { color: #1F8FFF; }
+  .k-nav-divider { height: 1px; background: #e6e6e6; margin: 8px 16px; }
+  /* Prompt expand animation */
+  .prompt-expand { transition: all .4s cubic-bezier(.4,0,.2,1); }
+  .creation-card { transition: all .35s cubic-bezier(.4,0,.2,1); }
+  .creation-card.hidden-card { opacity: 0; max-width: 0; overflow: hidden; padding: 0; margin: 0; border: none; }
+  /* Chat typing dots */
+  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: #1F8FFF; display: inline-block; animation: typing 1.2s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: .2s; }
+  .typing-dot:nth-child(3) { animation-delay: .4s; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback, useEffect, useRef } = React;
+
+// ─── Mock Data ───
+const MOCK_APPS = [
+  { id: 1, name: 'Sales KPI Dashboard', desc: 'Executive sales KPIs with regional breakdown and pipeline tracker.', status: 'running', framework: 'Streamlit', visitors: '2.4K', lastDeploy: '2h ago', sparkline: [8,12,10,15,13,18,14,20,16,19] },
+  { id: 2, name: 'Customer Churn Predictor', desc: 'ML-powered churn risk scoring with intervention recommendations.', status: 'running', framework: 'JavaScript', visitors: '890', lastDeploy: '4h ago', sparkline: [12,10,14,11,15,13,12,14,13,12] },
+  { id: 3, name: 'Inventory Tracker', desc: 'Stock levels monitoring with reorder alerts and trend visualization.', status: 'sleeping', framework: 'Streamlit', visitors: '340', lastDeploy: '3d ago', sparkline: [6,4,3,2,4,3,2,1,1,0] },
+  { id: 4, name: 'Marketing Attribution', desc: 'Multi-touch attribution model with channel comparison and ROI analysis.', status: 'stopped', framework: 'Docker', visitors: '0', lastDeploy: '14d ago', sparkline: [0,0,0,0,0,0,0,0,0,0] },
+  { id: 5, name: 'Executive Report Builder', desc: 'Automated report generation with branded exports and scheduling.', status: 'deploying', framework: 'JavaScript', visitors: '-', lastDeploy: 'now', sparkline: [10,12,8,14,11,9,13,15,12,0] },
+];
+
+const PREBUILT_APPS = [
+  { name: 'KPI Dashboard', icon: '📊', desc: 'Revenue, metrics, charts', gradient: 'from-blue-100 to-purple-100' },
+  { name: 'Report Builder', icon: '📋', desc: 'Automated branded reports', gradient: 'from-green-100 to-blue-100' },
+  { name: 'Data Entry Form', icon: '📝', desc: 'Collect & validate data', gradient: 'from-yellow-100 to-green-100' },
+  { name: 'Data Explorer', icon: '🔍', desc: 'Search & filter tables', gradient: 'from-red-100 to-yellow-100' },
+  { name: 'Customer 360', icon: '👤', desc: 'Unified customer view', gradient: 'from-purple-100 to-pink-100' },
+  { name: 'Churn Predictor', icon: '🔮', desc: 'ML churn risk scoring', gradient: 'from-indigo-100 to-blue-100' },
+  { name: 'Inventory Monitor', icon: '📦', desc: 'Stock levels & alerts', gradient: 'from-orange-100 to-yellow-100' },
+  { name: 'Financial Dashboard', icon: '💰', desc: 'P&L, cash flow, budgets', gradient: 'from-green-100 to-emerald-100' },
+  { name: 'Marketing Attribution', icon: '📈', desc: 'Channel ROI analysis', gradient: 'from-pink-100 to-red-100' },
+  { name: 'Sales Pipeline', icon: '🎯', desc: 'Deal tracking & forecast', gradient: 'from-blue-100 to-cyan-100' },
+  { name: 'Support Tracker', icon: '🎫', desc: 'Ticket management', gradient: 'from-amber-100 to-orange-100' },
+  { name: 'Employee Directory', icon: '👥', desc: 'Team profiles & org chart', gradient: 'from-teal-100 to-green-100' },
+  { name: 'Project Status', icon: '📅', desc: 'Milestones & progress', gradient: 'from-violet-100 to-purple-100' },
+  { name: 'Survey Builder', icon: '✅', desc: 'Create & analyze surveys', gradient: 'from-lime-100 to-green-100' },
+  { name: 'Pricing Calculator', icon: '🧮', desc: 'Dynamic pricing tool', gradient: 'from-sky-100 to-blue-100' },
+  { name: 'Product Catalog', icon: '🛍️', desc: 'Browse & manage products', gradient: 'from-rose-100 to-pink-100' },
+  { name: 'Booking Manager', icon: '📆', desc: 'Appointments & scheduling', gradient: 'from-cyan-100 to-teal-100' },
+  { name: 'Feedback Board', icon: '💬', desc: 'Collect user feedback', gradient: 'from-fuchsia-100 to-purple-100' },
+  { name: 'Usage Analytics', icon: '📉', desc: 'Product usage insights', gradient: 'from-slate-100 to-gray-100' },
+  { name: 'Compliance Checker', icon: '🛡️', desc: 'Audit & compliance tools', gradient: 'from-emerald-100 to-teal-100' },
+];
+
+const DEPLOY_STEPS = [
+  { label: 'Git Push Received', detail: 'Commit a3f8c21 pushed to main branch — 2 files changed', icon: '📦' },
+  { label: 'Framework Detected', detail: 'Detected Streamlit app — requirements.txt found', icon: '🔍' },
+  { label: 'Container Built', detail: 'Docker image built successfully (12s)', icon: '🏗️' },
+  { label: 'Data Layer Injected', detail: 'Keboola workspace connected — 4 tables available', icon: '🔗' },
+  { label: 'Health Check', detail: 'App responding on port 8501 — HTTP 200 OK', icon: '🩺' },
+  { label: 'Traffic Routed', detail: 'Live at sales-dashboard.apps.keboola.com — SSL configured', icon: '🌐' },
+];
+
+const LOG_ENTRIES = [
+  { time: '14:32:01', level: 'INFO', msg: 'Application started on port 8501' },
+  { time: '14:32:02', level: 'INFO', msg: 'Connected to Keboola workspace — 4 tables available' },
+  { time: '14:32:15', level: 'INFO', msg: 'GET / — 200 OK (42ms)' },
+  { time: '14:33:08', level: 'INFO', msg: "Query: SELECT * FROM sales_kpis WHERE region = 'EMEA' — 1.2s" },
+  { time: '14:35:22', level: 'WARN', msg: 'Slow query detected: pipeline_stages (2.8s) — consider caching' },
+  { time: '14:40:01', level: 'INFO', msg: 'Health check passed — memory: 312MB / 4GB (7.8%)' },
+  { time: '14:45:33', level: 'ERROR', msg: 'Failed to refresh table: marketing_spend — retrying in 30s' },
+  { time: '14:46:03', level: 'INFO', msg: 'Table refresh succeeded: marketing_spend (4,521 rows)' },
+  { time: '14:50:12', level: 'INFO', msg: 'GET /api/kpis — 200 OK (18ms)' },
+  { time: '14:52:44', level: 'INFO', msg: 'Session started: user@acme.com via Keboola SSO' },
+];
+
+const DEPLOYS = [
+  { hash: 'a3f8c21', msg: 'feat: add revenue filter', branch: 'main', status: 'LIVE', duration: '14s', time: '2h ago' },
+  { hash: 'b7e2d19', msg: 'fix: chart timezone bug', branch: 'main', status: 'SUPERSEDED', duration: '12s', time: '1d ago' },
+  { hash: 'f1c4a88', msg: 'feat: regional breakdown', branch: 'main', status: 'SUPERSEDED', duration: '18s', time: '3d ago' },
+  { hash: 'e5d9c33', msg: 'chore: initial deploy', branch: 'main', status: 'SUPERSEDED', duration: '22s', time: '14d ago' },
+];
+
+// ─── Utility Components ───
+
+function Badge({ color, children }) {
+  const colors = {
+    green: 'bg-kgreen-light text-kgreen',
+    yellow: 'bg-kyellow-bg text-kyellow',
+    red: 'bg-kred-bg text-kred',
+    purple: 'bg-kpurple-bg text-kpurple',
+    gray: 'bg-kgray-100 text-kgray-600',
+    blue: 'bg-kblue-light text-kblue',
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${colors[color] || colors.gray}`}>
+      {children}
+    </span>
+  );
+}
+
+function StatusBadge({ status }) {
+  const map = {
+    running: { color: 'green', label: 'Running', dot: '●' },
+    sleeping: { color: 'yellow', label: 'Sleeping', dot: '●' },
+    stopped: { color: 'red', label: 'Stopped', dot: '●' },
+    deploying: { color: 'purple', label: 'Deploying', dot: '◌' },
+  };
+  const s = map[status] || map.stopped;
+  return <Badge color={s.color}>{s.dot} {s.label}</Badge>;
+}
+
+function FrameworkBadge({ framework }) {
+  const map = { Streamlit: 'blue', JavaScript: 'purple', Docker: 'gray' };
+  return <Badge color={map[framework] || 'gray'}>{framework}</Badge>;
+}
+
+function Sparkline({ data }) {
+  const max = Math.max(...data, 1);
+  return (
+    <div className="inline-flex items-end gap-[2px] h-5">
+      {data.map((v, i) => <span key={i} className="sparkline-bar w-[3px]" style={{ height: `${(v / max) * 100}%` }} />)}
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub, subColor }) {
+  return (
+    <div className="bg-white rounded-lg p-4 border border-kborder shadow-sm">
+      <div className="text-[11px] text-kgray-500 uppercase tracking-wider font-medium mb-1">{label}</div>
+      <div className="text-[22px] font-bold text-ktext">{value}</div>
+      {sub && <div className={`text-[11px] mt-0.5 ${subColor || 'text-kgray-500'}`}>{sub}</div>}
+    </div>
+  );
+}
+
+function Btn({ variant = 'outline', size = 'md', onClick, children, className = '', disabled }) {
+  const base = 'rounded-lg font-semibold cursor-pointer border-none transition-all inline-flex items-center gap-1.5';
+  const sizes = { sm: 'px-2.5 py-1 text-[11px]', md: 'px-4 py-[7px] text-[12px]', lg: 'px-5 py-2.5 text-[13px]' };
+  const variants = {
+    primary: 'bg-kgreen text-white hover:bg-kgreen-hover shadow-sm',
+    secondary: 'bg-kblue text-white hover:bg-kblue-hover shadow-sm',
+    outline: 'bg-white text-ktext border border-kborder hover:bg-kgray-100',
+    ghost: 'bg-transparent text-kblue hover:bg-kblue-light',
+    danger: 'bg-white text-kred border border-kred-bg hover:bg-kred-bg',
+  };
+  return (
+    <button className={`${base} ${sizes[size]} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`} onClick={disabled ? undefined : onClick}>
+      {children}
+    </button>
+  );
+}
+
+function Tab({ tabs, active, onChange }) {
+  return (
+    <div className="flex gap-0 border-b-2 border-kgray-200 mb-5">
+      {tabs.map(t => (
+        <div key={t} onClick={() => onChange(t)} className={`px-4 py-2 text-[12px] font-semibold cursor-pointer border-b-2 -mb-[2px] transition-all ${active === t ? 'text-kblue border-kblue' : 'text-kgray-500 border-transparent hover:text-ktext'}`}>
+          {t}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── SVG Icons for Keboola Sidebar ───
+
+const KIcons = {
+  dashboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  flows: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 009 9"/></svg>,
+  storage: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+  dataApps: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
+  components: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+  workspaces: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
+  transformations: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>,
+  dataCatalog: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>,
+  jobs: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+  templates: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+  lineage: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>,
+  trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>,
+  help: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+};
+
+// ─── Keboola Primary Sidebar ───
+
+function KeboolaSidebar() {
+  const navItems = [
+    { icon: KIcons.dashboard, label: 'Dashboard' },
+    { icon: KIcons.flows, label: 'Flows' },
+    { icon: KIcons.storage, label: 'Storage' },
+    { icon: KIcons.dataApps, label: 'Data Apps', active: true },
+  ];
+  const navItems2 = [
+    { icon: KIcons.components, label: 'Components' },
+    { icon: KIcons.workspaces, label: 'Workspaces' },
+    { icon: KIcons.transformations, label: 'Transformations' },
+    { icon: KIcons.dataCatalog, label: 'Data Catalog' },
+    { icon: KIcons.jobs, label: 'Jobs' },
+    { icon: KIcons.templates, label: 'Templates' },
+    { icon: KIcons.lineage, label: 'Lineage', badge: 'Beta' },
+  ];
+  return (
+    <nav className="w-[210px] bg-white border-r border-kborder flex flex-col flex-shrink-0 h-screen overflow-y-auto">
+      <div className="px-4 py-3 flex items-center gap-2">
+        <div className="w-8 h-8"><svg viewBox="0 0 32 32" className="w-8 h-8"><circle cx="16" cy="16" r="15" fill="#1F8FFF" opacity=".1"/><text x="16" y="21" textAnchor="middle" fontSize="16" fontWeight="700" fill="#1F8FFF">K</text></svg></div>
+        <span className="text-[13px] font-semibold text-ktext truncate">[Demo] Data Apps</span>
+      </div>
+      <div className="flex-1 py-1">
+        {navItems.map(item => (
+          <div key={item.label} className={`k-nav-item ${item.active ? 'active' : ''}`}>{item.icon}<span>{item.label}</span></div>
+        ))}
+        <div className="k-nav-divider" />
+        {navItems2.map(item => (
+          <div key={item.label} className="k-nav-item">{item.icon}<span>{item.label}</span>
+            {item.badge && <span className="ml-auto text-[9px] font-bold bg-kblue text-white px-1.5 py-0.5 rounded">{item.badge}</span>}
+          </div>
+        ))}
+        <div className="k-nav-divider" />
+        <div className="k-nav-item">{KIcons.trash}<span>Trash</span></div>
+      </div>
+      <div className="border-t border-kborder"><div className="k-nav-item">{KIcons.help}<span>Support & Feedback</span></div></div>
+    </nav>
+  );
+}
+
+// ─── Keboola Top Bar ───
+
+function KeboolaTopBar({ screen, onNavigate }) {
+  const crumbs = {
+    dashboard: [{ label: 'Data Apps' }],
+    detail: [{ label: 'Data Apps', link: 'dashboard' }, { label: 'Sales KPI Dashboard' }],
+    settings: [{ label: 'Data Apps', link: 'dashboard' }, { label: 'Settings' }],
+    deploy: [{ label: 'Data Apps', link: 'dashboard' }, { label: 'Deploy' }],
+    preview: [{ label: 'Data Apps', link: 'dashboard' }, { label: 'App Preview' }],
+    create: [{ label: 'Data Apps', link: 'dashboard' }, { label: 'New App' }],
+    builder: [{ label: 'Data Apps', link: 'dashboard' }, { label: 'New App', link: 'create' }, { label: 'Building...' }],
+  };
+  const bc = crumbs[screen] || crumbs.dashboard;
+
+  return (
+    <div className="bg-white border-b border-kborder px-6 py-2.5 flex justify-between items-center sticky top-0 z-10">
+      <div className="flex items-center gap-1.5 text-[13px]">
+        {bc.map((c, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <span className="text-kgray-400 mx-0.5">/</span>}
+            {c.link ? (
+              <span className="text-kgray-500 hover:text-kblue cursor-pointer transition-colors" onClick={() => onNavigate(c.link)}>{c.label}</span>
+            ) : (
+              <span className="font-semibold text-ktext">{c.label}</span>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+      <div className="flex gap-2.5 items-center">
+        {screen === 'dashboard' && <Btn variant="primary" onClick={() => onNavigate('create')}>+ New App</Btn>}
+        {screen === 'detail' && (
+          <>
+            <Badge color="green">● Running</Badge>
+            <Btn variant="outline" size="sm" onClick={() => onNavigate('settings')}>Settings</Btn>
+            <Btn variant="secondary" size="sm" onClick={() => onNavigate('preview')}>Open App ↗</Btn>
+          </>
+        )}
+        {screen === 'settings' && <><Btn variant="outline" size="sm" onClick={() => onNavigate('detail')}>← Back</Btn><Btn variant="primary" size="sm">Save Changes</Btn></>}
+        {screen === 'deploy' && <Btn variant="outline" size="sm" onClick={() => onNavigate('detail')}>← Back</Btn>}
+        {screen === 'preview' && <Btn variant="outline" size="sm" onClick={() => onNavigate('detail')}>← Back</Btn>}
+        {screen === 'create' && <Btn variant="outline" size="sm" onClick={() => onNavigate('dashboard')}>← Back</Btn>}
+        {screen === 'builder' && <Btn variant="outline" size="sm" onClick={() => onNavigate('create')}>← Back</Btn>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Secondary Nav ───
+
+function SecondaryNav({ screen, onNavigate }) {
+  if (['create', 'builder', 'preview'].includes(screen)) return null;
+  const items = [
+    { id: 'dashboard', label: 'All Apps' },
+    { id: 'detail', label: 'App Detail' },
+    { id: 'deploy', label: 'Deploy' },
+    { id: 'settings', label: 'Settings' },
+  ];
+  return (
+    <div className="bg-white border-b border-kborder px-6 flex gap-0">
+      {items.map(item => (
+        <div key={item.id} onClick={() => onNavigate(item.id)} className={`px-4 py-2.5 text-[12px] font-semibold cursor-pointer border-b-2 transition-all ${screen === item.id ? 'text-kblue border-kblue' : 'text-kgray-500 border-transparent hover:text-ktext'}`}>
+          {item.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Screen: Create (NEW — replaces modal) ───
+
+function CreateScreen({ onNavigate }) {
+  const [aiExpanded, setAiExpanded] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (aiExpanded && inputRef.current) {
+      setTimeout(() => inputRef.current.focus(), 300);
+    }
+  }, [aiExpanded]);
+
+  const handleSubmit = () => {
+    if (prompt.trim()) onNavigate('builder');
+  };
+
+  const examplePrompts = [
+    '📊 "Dashboard showing monthly revenue trends"',
+    '📋 "Weekly report for the exec team"',
+    '📝 "Form to collect customer feedback"',
+  ];
+
+  return (
+    <div className="screen-enter p-6 max-w-[1100px] mx-auto">
+      {/* Two creation paths */}
+      <div className={`flex gap-4 mb-8 ${aiExpanded ? 'flex-col' : ''}`}>
+        {/* Build with AI card */}
+        <div
+          className={`creation-card bg-white border-2 rounded-xl transition-all duration-400 ${
+            aiExpanded
+              ? 'border-kblue shadow-[0_4px_24px_rgba(31,143,255,.12)] flex-1 p-0'
+              : 'border-kborder hover:border-kblue hover:shadow-md flex-1 p-6 text-center cursor-pointer'
+          }`}
+          onClick={!aiExpanded ? () => setAiExpanded(true) : undefined}
+        >
+          {!aiExpanded ? (
+            /* Collapsed card */
+            <>
+              <div className="w-12 h-12 bg-gradient-to-br from-kpurple to-kblue rounded-xl mx-auto mb-3 flex items-center justify-center text-2xl">🤖</div>
+              <div className="text-base font-bold text-ktext mb-1">Build with AI</div>
+              <div className="text-[12px] text-kgray-600 leading-relaxed">Describe what you need and KAI<br/>will create your Data App</div>
+            </>
+          ) : (
+            /* Expanded prompt */
+            <div className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 bg-gradient-to-br from-kpurple to-kblue rounded-lg flex items-center justify-center text-lg">🤖</div>
+                <div className="flex-1">
+                  <div className="text-[15px] font-bold text-ktext">What do you want to build?</div>
+                  <div className="text-[11px] text-kgray-500">KAI will create your Data App from your Keboola data</div>
+                </div>
+                <span className="text-[12px] text-kgray-500 hover:text-ktext cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); setAiExpanded(false); setPrompt(''); }}>✕ Cancel</span>
+              </div>
+              <div className="flex items-center gap-2 mb-3">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="flex-1 bg-kgray-100 border border-kborder rounded-xl px-4 py-3 text-[13px] text-ktext outline-none focus:border-kblue focus:bg-white focus:shadow-[0_0_0_3px_rgba(31,143,255,.1)] transition-all placeholder:text-kgray-400"
+                  placeholder="A sales dashboard that shows revenue by region from my sales data..."
+                  value={prompt}
+                  onChange={e => setPrompt(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                />
+                <button
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold transition-all ${prompt.trim() ? 'bg-kblue hover:bg-kblue-hover shadow-sm cursor-pointer' : 'bg-kgray-300 cursor-not-allowed'}`}
+                  onClick={handleSubmit}
+                >→</button>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {examplePrompts.map((ep, i) => (
+                  <span key={i} onClick={() => setPrompt(ep.replace(/^[^\"]+"/, '').replace('"', ''))} className="px-3 py-1.5 bg-kblue-light border border-kblue/20 rounded-full text-[11px] text-kblue cursor-pointer hover:bg-kblue/10 transition-colors">{ep}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Develop Locally card */}
+        <div className={`creation-card bg-white border-2 border-kborder rounded-xl hover:border-kgreen hover:shadow-md cursor-pointer transition-all duration-400 ${aiExpanded ? 'hidden-card' : 'flex-1 p-6 text-center'}`}>
+          <div className="w-12 h-12 bg-gradient-to-br from-kblue to-kgreen rounded-xl mx-auto mb-3 flex items-center justify-center text-2xl">💻</div>
+          <div className="text-base font-bold text-ktext mb-1">Develop Locally</div>
+          <div className="text-[12px] text-kgray-600 leading-relaxed">Code your own app and push<br/>via Git — Streamlit, JS, Docker</div>
+        </div>
+      </div>
+
+      {/* Prebuilt Apps Gallery */}
+      <div className={`transition-opacity duration-400 ${aiExpanded ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <span className="text-[15px] font-bold text-ktext">Prebuilt Apps</span>
+            <span className="text-[12px] text-kgray-500 ml-2">Start from a proven template</span>
+          </div>
+          <span className="text-[12px] text-kblue font-semibold cursor-pointer hover:underline">View all {PREBUILT_APPS.length}+ →</span>
+        </div>
+        <div className="grid grid-cols-5 gap-3">
+          {PREBUILT_APPS.map((app, i) => (
+            <div key={i} onClick={() => onNavigate('detail')} className="bg-white border border-kborder rounded-lg overflow-hidden cursor-pointer hover:border-kblue hover:shadow-sm transition-all group">
+              <div className={`h-[52px] bg-gradient-to-br ${app.gradient} flex items-center justify-center text-xl group-hover:scale-105 transition-transform`}>{app.icon}</div>
+              <div className="p-2.5">
+                <div className="text-[12px] font-semibold text-ktext leading-tight">{app.name}</div>
+                <div className="text-[10px] text-kgray-500 mt-0.5">{app.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen: AI Builder (NEW) ───
+
+function BuilderScreen({ onNavigate }) {
+  const [messages, setMessages] = useState([]);
+  const [step, setStep] = useState(0);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [columnMappingConfirmed, setColumnMappingConfirmed] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
+  const chatEndRef = useRef(null);
+
+  const tables = [
+    { key: 'sales_kpis', label: 'out.c-sales.kpis', desc: '45,230 rows · Updated 15 min ago', columns: ['date', 'region', 'amount', 'deals_count', 'pipeline_value', 'rep_name'], bucket: 'out.c-sales' },
+    { key: 'monthly_targets', label: 'out.c-sales.targets', desc: '120 rows · Updated 1d ago', columns: ['month', 'region', 'target_amount', 'target_deals'], bucket: 'out.c-sales' },
+    { key: 'crm_deals', label: 'out.c-crm.deals', desc: '8,412 rows · Updated 2h ago', columns: ['deal_id', 'stage', 'value', 'close_date', 'owner'], bucket: 'out.c-crm' },
+  ];
+
+  const columnMapping = [
+    { column: 'amount', role: 'KPI — Revenue', icon: '💰' },
+    { column: 'deals_count', role: 'KPI — Deals Closed', icon: '🎯' },
+    { column: 'pipeline_value', role: 'KPI — Pipeline', icon: '📈' },
+    { column: 'region', role: 'Breakdown dimension', icon: '🌍' },
+    { column: 'date', role: 'Time series axis', icon: '📅' },
+    { column: 'rep_name', role: 'Top performers table', icon: '👤' },
+  ];
+
+  useEffect(() => {
+    // Step 0: show user message
+    setTimeout(() => {
+      setMessages([{ type: 'user', text: 'Build me a sales dashboard that shows revenue by region from my sales data' }]);
+      setStep(1);
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    if (step === 1) {
+      // Step 1: KAI scans project, then shows table suggestions
+      setTimeout(() => {
+        setMessages(prev => [...prev, { type: 'typing' }]);
+      }, 600);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai',
+          text: 'I scanned your Keboola project and found 3 tables that match "sales". Which should I use for your dashboard?',
+          tableOptions: tables,
+        }]));
+        setStep(2);
+      }, 2200);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 3) {
+      // After table selection — KAI shows column mapping
+      setTimeout(() => {
+        setMessages(prev => [...prev, { type: 'typing' }]);
+      }, 400);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai',
+          text: 'I read the schema of out.c-sales.kpis (45,230 rows, 6 columns). Here\'s how I\'ll map the columns to your dashboard:',
+          columnMapping: columnMapping,
+        }]));
+        setStep(4);
+      }, 1800);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 5) {
+      // After column mapping confirmed — build
+      setTimeout(() => {
+        setMessages(prev => [...prev, { type: 'typing' }]);
+      }, 300);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai',
+          text: 'Building your dashboard... Querying out.c-sales.kpis for the latest data and generating the UI.',
+        }]));
+      }, 1200);
+      setTimeout(() => {
+        setPreviewReady(true);
+        setMessages(prev => [...prev, {
+          type: 'kai',
+          text: 'Your app is live with real data from out.c-sales.kpis! The KPIs show aggregated amount, deals_count, and pipeline_value. You can iterate by describing changes, or deploy when ready.',
+        }]);
+        setStep(6);
+      }, 3500);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSelectTable = (key) => {
+    setSelectedTable(key);
+    const table = tables.find(t => t.key === key);
+    setMessages(prev => prev.map(m =>
+      m.tableOptions ? { ...m, selectedOption: key } : m
+    ).concat([{ type: 'user', text: `Use ${table.label}` }]));
+    setStep(3);
+  };
+
+  const handleConfirmMapping = () => {
+    setColumnMappingConfirmed(true);
+    setMessages(prev => prev.map(m =>
+      m.columnMapping ? { ...m, confirmed: true } : m
+    ).concat([{ type: 'user', text: 'Looks good, build it!' }]));
+    setStep(5);
+  };
+
+  return (
+    <div className="screen-enter flex h-full">
+      {/* Chat panel */}
+      <div className="w-[42%] border-r border-kborder bg-white flex flex-col">
+        <div className="px-4 py-3 border-b border-kborder flex items-center gap-2">
+          <div className="w-6 h-6 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-xs">🤖</div>
+          <span className="text-[13px] font-bold text-ktext">KAI Assistant</span>
+          <span className="text-[10px] text-kgray-500 ml-auto">Powered by Keboola AI</span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.map((msg, i) => {
+            if (msg.type === 'typing') {
+              return (
+                <div key={i} className="flex items-center gap-2 msg-enter">
+                  <div className="w-7 h-7 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-[10px]">🤖</div>
+                  <div className="flex gap-1 px-3 py-2 bg-kgray-100 rounded-xl">
+                    <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                  </div>
+                </div>
+              );
+            }
+            if (msg.type === 'user') {
+              return (
+                <div key={i} className="flex justify-end msg-enter" style={{ animationDelay: `${i * 0.1}s` }}>
+                  <div className="bg-kblue-light text-ktext rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[85%] text-[12px] leading-relaxed">{msg.text}</div>
+                </div>
+              );
+            }
+            // KAI message
+            return (
+              <div key={i} className="flex gap-2 msg-enter" style={{ animationDelay: `${i * 0.1}s` }}>
+                <div className="w-7 h-7 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">🤖</div>
+                <div className="flex-1">
+                  <div className="bg-white border border-kborder rounded-2xl rounded-bl-sm px-4 py-2.5 text-[12px] leading-relaxed text-kgray-700">
+                    {msg.text}
+                  </div>
+                  {msg.tableOptions && (
+                    <div className="flex flex-col gap-2 mt-2.5">
+                      {msg.tableOptions.map(opt => (
+                        <div
+                          key={opt.key}
+                          onClick={() => !msg.selectedOption && handleSelectTable(opt.key)}
+                          className={`rounded-lg text-[11px] transition-all overflow-hidden ${
+                            msg.selectedOption === opt.key
+                              ? 'bg-kblue-light border-2 border-kblue'
+                              : msg.selectedOption
+                              ? 'bg-kgray-100 border border-kgray-200 opacity-50 cursor-default'
+                              : 'bg-white border border-kborder hover:border-kblue hover:shadow-sm cursor-pointer'
+                          }`}
+                        >
+                          <div className="px-3 py-2 flex items-center gap-2">
+                            {msg.selectedOption === opt.key && <span className="text-kblue font-bold">✓</span>}
+                            <span className="font-mono font-bold text-[12px]">{opt.label}</span>
+                            <span className="text-kgray-500 ml-auto text-[10px]">{opt.desc}</span>
+                          </div>
+                          {(!msg.selectedOption || msg.selectedOption === opt.key) && (
+                            <div className="px-3 pb-2 flex flex-wrap gap-1">
+                              {opt.columns.map(col => (
+                                <span key={col} className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                                  msg.selectedOption === opt.key ? 'bg-kblue/10 text-kblue' : 'bg-kgray-100 text-kgray-600'
+                                }`}>{col}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {msg.columnMapping && (
+                    <div className="mt-2.5">
+                      <div className="bg-white border border-kborder rounded-lg overflow-hidden">
+                        {msg.columnMapping.map((cm, ci) => (
+                          <div key={ci} className={`flex items-center gap-2.5 px-3 py-2 text-[11px] ${ci < msg.columnMapping.length - 1 ? 'border-b border-kgray-200' : ''}`}>
+                            <span className="text-base">{cm.icon}</span>
+                            <span className="font-mono font-bold text-kblue">{cm.column}</span>
+                            <span className="text-kgray-400">→</span>
+                            <span className="text-kgray-700">{cm.role}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {!msg.confirmed && (
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={handleConfirmMapping} className="px-3.5 py-1.5 bg-kblue text-white rounded-lg text-[11px] font-semibold hover:bg-kblue-hover cursor-pointer transition-colors">Looks good, build it!</button>
+                          <button className="px-3.5 py-1.5 bg-white border border-kborder text-kgray-600 rounded-lg text-[11px] font-semibold hover:bg-kgray-100 cursor-pointer transition-colors">Adjust mapping</button>
+                        </div>
+                      )}
+                      {msg.confirmed && (
+                        <div className="mt-1.5 text-[10px] text-kgreen font-semibold">✓ Mapping confirmed</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <div ref={chatEndRef} />
+        </div>
+        {/* Chat input */}
+        <div className="p-3 border-t border-kborder">
+          <div className="flex items-center gap-2 bg-kgray-100 rounded-xl px-4 py-2.5">
+            <input className="flex-1 bg-transparent border-none outline-none text-[12px] text-ktext placeholder:text-kgray-400" placeholder="Ask KAI to make changes..." />
+            <span className="bg-kblue text-white rounded-md px-2 py-0.5 text-[10px] font-bold cursor-pointer">↵</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Preview panel */}
+      <div className="flex-1 bg-kbg flex flex-col">
+        <div className="px-4 py-3 border-b border-kborder bg-white flex items-center justify-between">
+          <span className="text-[13px] font-bold text-ktext">Preview</span>
+          <div className="flex gap-1">
+            {['Desktop', 'Mobile', 'Code'].map(v => (
+              <span key={v} className={`px-2.5 py-1 rounded-md text-[10px] font-semibold cursor-pointer transition-colors ${v === 'Desktop' ? 'bg-kblue-light text-kblue' : 'text-kgray-500 hover:bg-kgray-100'}`}>{v}</span>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 p-6 overflow-y-auto">
+          {!previewReady ? (
+            <div className="h-full flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-kpurple-light to-kblue-light rounded-2xl flex items-center justify-center text-3xl mb-4">
+                {step < 5 ? '🤖' : '⏳'}
+              </div>
+              <div className="text-[14px] font-semibold text-ktext mb-1">
+                {step < 3 ? 'KAI is scanning your project...' : step < 5 ? 'Confirm the data mapping to start building' : 'Building your app...'}
+              </div>
+              <div className="text-[12px] text-kgray-500">
+                {step < 3 ? 'Analyzing tables in your Keboola Storage to find relevant data' : step < 5 ? 'Review how KAI will map your columns to dashboard elements' : 'Querying out.c-sales.kpis and generating UI'}
+              </div>
+              {step >= 5 && (
+                <div className="w-48 h-1.5 bg-kgray-200 rounded-full mt-4 overflow-hidden">
+                  <div className="h-full bg-kblue rounded-full" style={{ animation: 'progressBuild 2s ease forwards' }} />
+                </div>
+              )}
+              {step < 5 && (
+                <div className="mt-5 text-left bg-white border border-kborder rounded-lg p-3 max-w-[280px]">
+                  <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold mb-2">Your Project Data</div>
+                  {[{b:'out.c-sales',t:3},{b:'out.c-crm',t:2},{b:'out.c-marketing',t:4}].map((b,i) => (
+                    <div key={i} className="flex justify-between text-[11px] py-1 border-b border-kgray-200 last:border-0">
+                      <span className="font-mono text-kgray-600">{b.b}</span>
+                      <span className="text-kgray-400">{b.t} tables</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white border border-kborder rounded-xl shadow-lg overflow-hidden max-w-3xl mx-auto" style={{ animation: 'slideUp .5s ease' }}>
+              <div className="bg-dark text-white px-5 py-3 flex justify-between items-center">
+                <div className="flex items-center gap-2"><span className="text-base">📊</span><span className="font-semibold text-[13px]">Sales KPI Dashboard</span></div>
+                <div className="flex items-center gap-2">
+                  <select className="bg-white/10 text-white border border-white/20 rounded-md px-2 py-0.5 text-[11px] outline-none"><option>All Regions</option><option>EMEA</option><option>Americas</option><option>APAC</option></select>
+                  <span className="text-[9px] text-white/40 font-mono">out.c-sales.kpis</span>
+                </div>
+              </div>
+              <div className="p-5 bg-kgray-75">
+                {/* Data source indicator */}
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-kblue-light/50 border border-kblue/10 rounded-lg" style={{ animation: 'fadeInUp .3s ease both' }}>
+                  <span className="inline-flex items-center justify-center w-4 h-4 bg-kblue rounded text-white text-[8px] font-bold">K</span>
+                  <span className="text-[10px] text-kblue font-medium">Live data from <span className="font-mono font-bold">out.c-sales.kpis</span> · 45,230 rows · Last refreshed 15 min ago</span>
+                </div>
+                {/* KPI cards with column names */}
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  {[
+                    {l:'SUM(amount)',display:'Revenue',v:'$2.4M',c:'↑ 18%',col:'amount'},
+                    {l:'SUM(deals_count)',display:'Deals Closed',v:'142',c:'↑ 8%',col:'deals_count'},
+                    {l:'SUM(pipeline_value)',display:'Pipeline',v:'$5.1M',c:'↑ 24%',col:'pipeline_value'},
+                  ].map((kpi,i) => (
+                    <div key={i} className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: `fadeInUp .4s ease ${.1*i}s both` }}>
+                      <div className="flex justify-between items-start">
+                        <div className="text-[10px] text-kgray-500 uppercase tracking-wider">{kpi.display}</div>
+                        <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1 py-0.5 rounded">{kpi.col}</span>
+                      </div>
+                      <div className="text-[24px] font-bold text-ktext mt-1">{kpi.v}</div>
+                      <div className="text-[11px] text-kgreen font-semibold mt-0.5">{kpi.c} vs last month</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Chart with column reference */}
+                <div className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: 'fadeInUp .4s ease .4s both' }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold">amount by date — Monthly 2025</div>
+                    <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1.5 py-0.5 rounded">GROUP BY date</span>
+                  </div>
+                  <div className="flex items-end gap-2 h-[140px]">
+                    {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => {
+                      const v = [35,42,38,55,62,58,72,80,75,90,95,88][i];
+                      return (
+                        <div key={m} className="flex-1 flex flex-col items-center">
+                          <div className="w-full bg-kblue rounded-t" style={{ height: `${v}%`, opacity: 0.5+(v/200), animation: `fadeInUp .3s ease ${.05*i}s both` }} />
+                          <div className="text-[9px] text-kgray-500 mt-1">{m}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* Bottom row with column references */}
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: 'fadeInUp .4s ease .6s both' }}>
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold">Top by rep_name</div>
+                      <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1.5 py-0.5 rounded">rep_name</span>
+                    </div>
+                    {['Sarah Chen — $420K','Mike Johnson — $380K','Lisa Park — $340K'].map((p,i) => (
+                      <div key={i} className="flex justify-between py-1.5 border-b border-kgray-200 text-[11px] last:border-0">
+                        <span>{i+1}. {p.split(' — ')[0]}</span><span className="font-semibold">{p.split(' — ')[1]}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: 'fadeInUp .4s ease .7s both' }}>
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold">pipeline_value by region</div>
+                      <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1.5 py-0.5 rounded">region</span>
+                    </div>
+                    {[{s:'EMEA',v:'$1.8M',p:35},{s:'Americas',v:'$1.4M',p:27},{s:'APAC',v:'$1.1M',p:22},{s:'LATAM',v:'$0.8M',p:16}].map((s,i) => (
+                      <div key={i} className="mb-1.5">
+                        <div className="flex justify-between text-[11px] mb-0.5"><span>{s.s}</span><span className="font-semibold">{s.v}</span></div>
+                        <div className="h-1 bg-kgray-200 rounded-full overflow-hidden"><div className="h-full bg-kblue rounded-full" style={{width:`${s.p}%`}}/></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-kborder px-5 py-2 flex justify-between items-center bg-kgray-75 text-[10px] text-kgray-500">
+                <span><span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-gradient-to-br from-kgreen to-kgreen-hover rounded text-white text-[7px] font-bold mr-1">K</span> Powered by Keboola · <span className="font-mono">out.c-sales.kpis</span> · 45,230 rows</span>
+                <div className="flex gap-2">
+                  <Btn variant="primary" size="sm" onClick={() => onNavigate('deploy')}>Deploy App</Btn>
+                  <Btn variant="outline" size="sm">Edit Code</Btn>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen: Dashboard ───
+
+function DashboardScreen({ onNavigate }) {
+  return (
+    <div className="screen-enter p-6">
+      <div className="grid grid-cols-4 gap-3.5 mb-5">
+        <StatCard label="Total Apps" value="5" sub="2 running, 1 sleeping, 1 stopped" />
+        <StatCard label="Running" value="2" sub="Healthy" subColor="text-kgreen" />
+        <StatCard label="Sleeping" value="1" sub="Auto-wakes on visit" />
+        <StatCard label="Total Visitors" value="3,630" sub="↑ 18% vs last month" subColor="text-kgreen" />
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
+        {MOCK_APPS.map(app => (
+          <div key={app.id} onClick={() => onNavigate('detail')} className="bg-white border border-kborder rounded-lg p-4 cursor-pointer transition-all hover:border-kblue hover:shadow-md shadow-sm">
+            <div className="flex justify-between items-start mb-2.5">
+              <div className="text-sm font-bold text-ktext">{app.name}</div>
+              <StatusBadge status={app.status} />
+            </div>
+            <div className="text-[12px] text-kgray-600 mb-3 leading-relaxed">{app.desc}</div>
+            <div className="flex gap-3 text-[11px] text-kgray-500">
+              <span className="flex items-center gap-1">👤 {app.visitors} visitors</span>
+              <FrameworkBadge framework={app.framework} />
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-kgray-200 flex justify-between items-center">
+              <Sparkline data={app.sparkline} />
+              <span className="text-[11px] text-kgray-500">Deployed {app.lastDeploy}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen: App Detail ───
+
+function DetailScreen({ onNavigate }) {
+  const [tab, setTab] = useState('Overview');
+  return (
+    <div className="screen-enter p-6">
+      <div className="grid grid-cols-5 gap-3.5 mb-5">
+        <StatCard label="Status" value="● Running" subColor="text-kgreen" sub="Uptime: 14d 6h 32m" />
+        <StatCard label="Visitors (30d)" value="2,400" sub="↑ 24% vs last month" subColor="text-kgreen" />
+        <StatCard label="Avg Response" value="1.2s" sub="p99: 2.8s" />
+        <StatCard label="Last Deploy" value="2h ago" sub="feat: add revenue filter" />
+        <StatCard label="Data Freshness" value="15 min" sub="4 tables, auto-refreshed" />
+      </div>
+      <Tab tabs={['Overview','Deploys','Logs','Settings']} active={tab} onChange={setTab} />
+
+      {tab === 'Overview' && (
+        <div>
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <div className="bg-white border border-kborder rounded-lg shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-kgray-200 font-semibold text-[13px]">Visitors Over Time</div>
+              <div className="p-4 h-[200px] flex items-end gap-1.5 pb-8">
+                {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((day,i) => {
+                  const h = [60,90,120,105,140,40,30][i];
+                  return <div key={day} className="flex-1 flex flex-col items-center"><div className="w-full bg-kblue rounded-t" style={{height:h,opacity:.5+(h/140)*.5}}/><div className="text-[11px] text-kgray-500 mt-1">{day}</div></div>;
+                })}
+              </div>
+            </div>
+            <div className="bg-white border border-kborder rounded-lg shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-kgray-200 font-semibold text-[13px] flex justify-between items-center">App Preview<Btn variant="ghost" size="sm" onClick={() => onNavigate('preview')}>Open Full ↗</Btn></div>
+              <div className="p-4"><SampleAppMini /></div>
+            </div>
+          </div>
+          <div className="bg-white border border-kborder rounded-lg shadow-sm p-4">
+            <div className="font-semibold text-[13px] mb-3">Quick Info</div>
+            <div className="grid grid-cols-3 gap-4 text-[12px]">
+              <div><span className="text-kgray-500">URL:</span> <code className="text-kblue">sales-dashboard.apps.keboola.com</code></div>
+              <div><span className="text-kgray-500">Framework:</span> Streamlit</div>
+              <div><span className="text-kgray-500">Backend:</span> Small (2 vCPU, 4GB)</div>
+              <div><span className="text-kgray-500">Auth:</span> Keboola SSO</div>
+              <div><span className="text-kgray-500">Repository:</span> <code>acme-corp/sales-dashboard</code></div>
+              <div><span className="text-kgray-500">Branch:</span> main</div>
+            </div>
+          </div>
+        </div>
+      )}
+      {tab === 'Deploys' && (
+        <div className="bg-white border border-kborder rounded-lg shadow-sm overflow-hidden">
+          <table className="w-full text-[12px] border-collapse">
+            <thead><tr className="bg-kgray-100">
+              {['Commit','Branch','Status','Duration','Time',''].map(h => <th key={h} className="text-left p-3 font-semibold text-ktext border-b border-kborder">{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {DEPLOYS.map((d,i) => (
+                <tr key={i} className="hover:bg-kblue-light">
+                  <td className="p-3 border-b border-kgray-200"><code className="text-kgray-500">{d.hash}</code> {d.msg}</td>
+                  <td className="p-3 border-b border-kgray-200">{d.branch}</td>
+                  <td className="p-3 border-b border-kgray-200"><Badge color={d.status==='LIVE'?'green':'gray'}>{d.status}</Badge></td>
+                  <td className="p-3 border-b border-kgray-200">{d.duration}</td>
+                  <td className="p-3 border-b border-kgray-200">{d.time}</td>
+                  <td className="p-3 border-b border-kgray-200"><Btn variant="ghost" size="sm">{d.status==='LIVE'?'Logs':'Rollback'}</Btn></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {tab === 'Logs' && (
+        <div>
+          <div className="flex gap-2 mb-3"><Btn variant="outline" size="sm">All</Btn><Btn variant="outline" size="sm">Errors only</Btn><Btn variant="outline" size="sm">Live tail</Btn></div>
+          <div className="bg-[#1e1e2e] rounded-lg p-4 max-h-[400px] overflow-y-auto">
+            {LOG_ENTRIES.map((log,i) => (
+              <div key={i} className="log-line flex gap-3 text-[11px] leading-[1.8]">
+                <span className="text-[#6c7086] whitespace-nowrap">{log.time}</span>
+                <span className={`font-bold w-11 text-center ${log.level==='INFO'?'text-[#89b4fa]':log.level==='WARN'?'text-[#f9e2af]':'text-[#f38ba8]'}`}>{log.level}</span>
+                <span className="text-[#cdd6f4]">{log.msg}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {tab === 'Settings' && (
+        <div className="py-2"><Btn variant="secondary" size="sm" onClick={() => onNavigate('settings')}>Open Full Settings →</Btn></div>
+      )}
+    </div>
+  );
+}
+
+// ─── Screen: Settings ───
+
+function SettingsScreen({ onNavigate }) {
+  const [backend, setBackend] = useState('Small');
+  const [auth, setAuth] = useState('Keboola SSO');
+  const [sleep, setSleep] = useState('60min');
+  const [autoScale, setAutoScale] = useState(true);
+  const backends = [
+    { id: 'Small', spec: '2 vCPU, 4 GB RAM', price: '$32/mo' },
+    { id: 'Medium', spec: '4 vCPU, 8 GB RAM', price: '$64/mo' },
+    { id: 'Large', spec: '8 vCPU, 16 GB RAM', price: '$128/mo' },
+  ];
+  const auths = [
+    { id: 'None', desc: 'Public access — anyone with the link', level: 1 },
+    { id: 'Basic Auth', desc: 'Password-protected access', level: 2 },
+    { id: 'Keboola SSO', desc: 'Single sign-on via Keboola', level: 3 },
+    { id: 'OIDC/SAML', desc: 'Enterprise SSO (Okta, Azure AD)', level: 3, enterprise: true },
+  ];
+  const secrets = [
+    { key: 'KEBOOLA_TOKEN', value: '••••••••', auto: true },
+    { key: 'API_KEY', value: '••••••••', auto: false },
+    { key: 'SLACK_WEBHOOK', value: '••••••••', auto: false },
+  ];
+  return (
+    <div className="screen-enter p-6">
+      <div className="mb-7">
+        <h3 className="text-sm font-bold text-ktext mb-3">Compute Backend</h3>
+        <div className="flex gap-3">
+          {backends.map(b => (
+            <div key={b.id} onClick={() => setBackend(b.id)} className={`border-2 rounded-lg p-4 min-w-[180px] cursor-pointer transition-all shadow-sm ${backend===b.id?'border-kblue bg-kblue-light':'border-kborder hover:border-kblue'}`}>
+              <div className="text-[13px] font-semibold text-ktext">{b.id}</div>
+              <div className="text-[11px] text-kgray-500 mt-0.5">{b.spec}</div>
+              <div className="text-[12px] font-semibold text-kblue mt-2">{b.price}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mb-7">
+        <h3 className="text-sm font-bold text-ktext mb-3">Authentication</h3>
+        <div className="flex flex-col gap-2">
+          {auths.map(a => (
+            <div key={a.id} onClick={() => !a.enterprise && setAuth(a.id)} className={`border-2 rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer transition-all ${a.enterprise?'opacity-70 cursor-default bg-kgray-75':auth===a.id?'border-kblue bg-kblue-light':'border-kborder hover:border-kblue'}`}>
+              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${auth===a.id?'border-kblue':'border-kgray-300'}`}>
+                {auth===a.id && <div className="w-2 h-2 rounded-full bg-kblue"/>}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="text-[13px] font-semibold text-ktext">{a.id}</div>
+                  {a.enterprise && <span className="text-[9px] font-bold uppercase bg-kblue-light text-kblue px-2 py-0.5 rounded-full">Enterprise</span>}
+                </div>
+                <div className="text-[11px] text-kgray-500">{a.desc}</div>
+              </div>
+              <div className="flex gap-1">{[1,2,3].map(i => <div key={i} className={`w-10 h-1 rounded-full ${i<=a.level?(a.level===1?'bg-kred':a.level===2?'bg-kyellow':'bg-kgreen'):'bg-kgray-200'}`}/>)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mb-7">
+        <h3 className="text-sm font-bold text-ktext mb-3">Sleep / Wake</h3>
+        <div className="bg-white border border-kborder rounded-lg p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-3">
+            <div><div className="text-[12px] font-semibold">Auto-Sleep Timeout</div><div className="text-[11px] text-kgray-500 mt-0.5">App sleeps after inactivity — wakes on next visit</div></div>
+            <select className="px-3 py-1.5 border border-kborder rounded-md text-[12px] outline-none" value={sleep} onChange={e => setSleep(e.target.value)}>
+              <option value="15min">After 15 min</option><option value="30min">After 30 min</option><option value="60min">After 1 hour</option><option value="never">Never (always on)</option>
+            </select>
+          </div>
+          <div className="flex justify-between items-center">
+            <div><div className="text-[12px] font-semibold">Auto-Scale</div><div className="text-[11px] text-kgray-500 mt-0.5">Automatically scale backend based on traffic</div></div>
+            <div className={`toggle ${autoScale?'on':'off'}`} onClick={() => setAutoScale(!autoScale)}/>
+          </div>
+        </div>
+      </div>
+      <div className="mb-7">
+        <h3 className="text-sm font-bold text-ktext mb-3">Domain</h3>
+        <div className="bg-white border border-kborder rounded-lg p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-3">
+            <div><div className="text-[12px] font-semibold">Default URL</div><div className="text-[11px] text-kgray-500 mt-0.5">Auto-assigned Keboola URL</div></div>
+            <code className="text-[12px] text-kblue">sales-dashboard.apps.keboola.com</code>
+          </div>
+          <div className="flex justify-between items-center">
+            <div><div className="text-[12px] font-semibold flex items-center gap-2">Custom Domain<span className="text-[9px] font-bold uppercase bg-kblue-light text-kblue px-2 py-0.5 rounded-full">Pro</span></div><div className="text-[11px] text-kgray-500 mt-0.5">Point your own domain with CNAME record</div></div>
+            <input className="px-3 py-1.5 border border-kborder rounded-md text-[12px] w-[200px] outline-none focus:border-kblue" placeholder="e.g. dashboard.acme.com" defaultValue="dashboard.acme.com"/>
+          </div>
+        </div>
+      </div>
+      <div className="mb-7">
+        <h3 className="text-sm font-bold text-ktext mb-3">Secrets & Environment Variables</h3>
+        <div className="bg-white border border-kborder rounded-lg shadow-sm overflow-hidden">
+          <table className="w-full text-[12px] border-collapse">
+            <thead><tr className="bg-kgray-100">{['Key','Value','Source',''].map(h => <th key={h} className="text-left p-3 font-semibold text-ktext border-b border-kborder">{h}</th>)}</tr></thead>
+            <tbody>
+              {secrets.map((s,i) => (
+                <tr key={i} className="hover:bg-kblue-light">
+                  <td className="p-3 border-b border-kgray-200 font-mono font-semibold">{s.key}</td>
+                  <td className="p-3 border-b border-kgray-200 text-kgray-500">{s.value}</td>
+                  <td className="p-3 border-b border-kgray-200">{s.auto?<Badge color="blue">AUTO-INJECTED</Badge>:<Badge color="gray">MANUAL</Badge>}</td>
+                  <td className="p-3 border-b border-kgray-200">{!s.auto && <Btn variant="ghost" size="sm">Remove</Btn>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="p-3 border-t border-kgray-200"><Btn variant="outline" size="sm">+ Add Secret</Btn><span className="text-[11px] text-kgray-500 ml-3">Keboola data connection (KEBOOLA_TOKEN) is auto-injected</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Screen: Deploy ───
+
+function DeployScreen() {
+  const [activeStep, setActiveStep] = useState(0);
+  useEffect(() => {
+    setActiveStep(0);
+    const interval = setInterval(() => setActiveStep(prev => { if(prev>=5){clearInterval(interval);return 5;} return prev+1; }), 800);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="screen-enter p-6">
+      <div className="bg-white border border-kborder rounded-lg shadow-sm overflow-hidden mb-5">
+        <div className="px-5 py-3.5 border-b border-kgray-200 font-semibold text-[13px] flex justify-between items-center">
+          <span>🚀 Deploying <strong>sales-dashboard</strong></span>
+          {activeStep>=5?<Badge color="green">LIVE</Badge>:<Badge color="purple">DEPLOYING</Badge>}
+        </div>
+        <div className="p-5">
+          {DEPLOY_STEPS.map((step,i) => (
+            <React.Fragment key={i}>
+              <div className="flex items-start gap-3.5">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0 ${i<=activeStep?'bg-kgreen-light text-kgreen':i===activeStep+1?'bg-kblue-light text-kblue':'bg-kgray-100 text-kgray-500'}`}>{i<=activeStep?'✓':step.icon}</div>
+                <div className="flex-1"><div className="text-[13px] font-semibold">{step.label}</div><div className="text-[12px] text-kgray-500">{step.detail}</div></div>
+              </div>
+              {i<DEPLOY_STEPS.length-1 && <div className={`w-0.5 h-4 ml-[17px] ${i<=activeStep?'bg-kgreen':'bg-kborder'}`}/>}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+      {activeStep>=5 && (
+        <div className="bg-kgreen-light border border-kgreen/20 rounded-lg p-5 flex items-center gap-4 mb-5 shadow-sm">
+          <div className="text-3xl">🎉</div>
+          <div>
+            <div className="text-sm font-bold text-ktext">Deployment Successful!</div>
+            <div className="text-[12px] text-kgray-600 mt-1">Deployed in <strong>14s</strong> — Live at <code className="text-kblue">sales-dashboard.apps.keboola.com</code></div>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white border border-kborder rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-kgray-200 font-semibold text-[13px]">What Keboola Does Automatically</div>
+          <div className="p-4 text-[12px] leading-[1.8]">✓ Detects framework (Streamlit, JS, Docker)<br/>✓ Builds container image<br/>✓ Injects Keboola data connection<br/>✓ Configures SSL certificate<br/>✓ Assigns URL or routes custom domain<br/>✓ Runs health check<br/>✓ Routes traffic with zero downtime<br/>✓ Creates preview deploy on PRs<br/>✓ Keeps previous version for rollback</div>
+        </div>
+        <div className="bg-white border border-kborder rounded-lg shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-kgray-200 font-semibold text-[13px]">Deploy History</div>
+          <table className="w-full text-[12px] border-collapse">
+            <tbody>
+              {DEPLOYS.slice(0,3).map((d,i) => (
+                <tr key={i} className="hover:bg-kblue-light"><td className="p-3 border-b border-kgray-200"><code className="text-kgray-500">{d.hash}</code></td><td className="p-3 border-b border-kgray-200">{d.msg}</td><td className="p-3 border-b border-kgray-200"><Badge color={d.status==='LIVE'?'green':'gray'}>{d.status}</Badge></td><td className="p-3 border-b border-kgray-200 text-kgray-500">{d.time}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sample App Components ───
+
+function SampleAppMini() {
+  return (
+    <div className="rounded-lg overflow-hidden border border-kborder">
+      <div className="bg-dark text-white px-3 py-2 text-[11px] font-semibold flex justify-between items-center"><span>Sales KPI Dashboard</span><span className="text-white/50 text-[10px]">EMEA ▾</span></div>
+      <div className="p-3 bg-kgray-75">
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {[{l:'Revenue',v:'$2.4M',c:'↑ 18%'},{l:'Deals',v:'142',c:'↑ 8%'},{l:'Pipeline',v:'$5.1M',c:'↑ 24%'}].map(k => (
+            <div key={k.l} className="bg-white rounded-md p-2 border border-kborder"><div className="text-[9px] text-kgray-500 uppercase">{k.l}</div><div className="text-sm font-bold text-ktext">{k.v}</div><div className="text-[9px] text-kgreen font-semibold">{k.c}</div></div>
+          ))}
+        </div>
+        <div className="flex items-end gap-1 h-10">{[40,60,80,55,90,100,70,65,85,75].map((v,i) => <div key={i} className="flex-1 bg-kblue rounded-t-sm" style={{height:`${v}%`,opacity:.6+(v/200)}}/>)}</div>
+      </div>
+    </div>
+  );
+}
+
+function SampleAppFull({ onNavigate }) {
+  const [region, setRegion] = useState('All Regions');
+  return (
+    <div className="screen-enter p-6">
+      <div className="bg-white border border-kborder rounded-lg shadow-lg overflow-hidden max-w-4xl mx-auto">
+        <div className="bg-dark text-white px-6 py-3.5 flex justify-between items-center">
+          <div className="flex items-center gap-3"><span className="text-lg">📊</span><span className="font-semibold text-sm">Sales KPI Dashboard</span></div>
+          <div className="flex items-center gap-3">
+            <select className="bg-white/10 text-white border border-white/20 rounded-md px-3 py-1 text-[12px] outline-none" value={region} onChange={e => setRegion(e.target.value)}>
+              {['All Regions','EMEA','Americas','APAC'].map(r => <option key={r} value={r} className="text-dark">{r}</option>)}
+            </select>
+            <span className="text-white/50 text-[11px]">Last updated: 15 min ago</span>
+          </div>
+        </div>
+        <div className="p-6 bg-kgray-75">
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            {[{l:'Revenue',v:'$2.4M',c:'+18%'},{l:'Deals Closed',v:'142',c:'+8%'},{l:'Pipeline',v:'$5.1M',c:'+24%'}].map(kpi => (
+              <div key={kpi.l} className="bg-white rounded-lg p-5 border border-kborder"><div className="text-[11px] text-kgray-500 uppercase tracking-wider">{kpi.l}</div><div className="text-[28px] font-bold text-ktext mt-1">{kpi.v}</div><div className="text-[12px] font-semibold mt-1 text-kgreen">{kpi.c} vs last month</div></div>
+            ))}
+          </div>
+          <div className="bg-white rounded-lg p-5 border border-kborder">
+            <div className="text-[11px] text-kgray-500 uppercase tracking-wider font-semibold mb-4">Monthly Revenue — 2025</div>
+            <div className="flex items-end gap-2 h-[200px]">
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => {
+                const v=[35,42,38,55,62,58,72,80,75,90,95,88][i];
+                return <div key={m} className="flex-1 flex flex-col items-center"><div className="w-full bg-kblue rounded-t" style={{height:`${v}%`,opacity:.5+(v/200)}}/><div className="text-[10px] text-kgray-500 mt-2">{m}</div></div>;
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="bg-white rounded-lg p-5 border border-kborder">
+              <div className="text-[11px] text-kgray-500 uppercase tracking-wider font-semibold mb-3">Top Performers</div>
+              {['Sarah Chen — $420K','Mike Johnson — $380K','Lisa Park — $340K','Tom Wilson — $290K'].map((p,i) => (
+                <div key={i} className="flex justify-between py-2 border-b border-kgray-200 text-[12px]"><span>{i+1}. {p.split(' — ')[0]}</span><span className="font-semibold">{p.split(' — ')[1]}</span></div>
+              ))}
+            </div>
+            <div className="bg-white rounded-lg p-5 border border-kborder">
+              <div className="text-[11px] text-kgray-500 uppercase tracking-wider font-semibold mb-3">Pipeline by Stage</div>
+              {[{s:'Qualified',v:'$1.8M',p:35},{s:'Proposal',v:'$1.4M',p:27},{s:'Negotiation',v:'$1.1M',p:22},{s:'Closing',v:'$0.8M',p:16}].map((s,i) => (
+                <div key={i} className="mb-2"><div className="flex justify-between text-[12px] mb-1"><span>{s.s}</span><span className="font-semibold">{s.v}</span></div><div className="h-1.5 bg-kgray-200 rounded-full overflow-hidden"><div className="h-full bg-kblue rounded-full" style={{width:`${s.p}%`}}/></div></div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-kborder px-6 py-2 flex justify-between items-center bg-kgray-75 text-[10px] text-kgray-500">
+          <span><span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-gradient-to-br from-kgreen to-kgreen-hover rounded text-white text-[7px] font-bold mr-1">K</span> Powered by Keboola</span>
+          <span>Region: {region} • Data refreshed 15 min ago</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── App Shell ───
+
+function App() {
+  const [screen, setScreen] = useState('dashboard');
+  const navigate = useCallback((s) => setScreen(s), []);
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'dashboard': return <DashboardScreen onNavigate={navigate} />;
+      case 'detail': return <DetailScreen onNavigate={navigate} />;
+      case 'settings': return <SettingsScreen onNavigate={navigate} />;
+      case 'deploy': return <DeployScreen />;
+      case 'preview': return <SampleAppFull onNavigate={navigate} />;
+      case 'create': return <CreateScreen onNavigate={navigate} />;
+      case 'builder': return <BuilderScreen onNavigate={navigate} />;
+      default: return <DashboardScreen onNavigate={navigate} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen">
+      <KeboolaSidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <KeboolaTopBar screen={screen} onNavigate={navigate} />
+        <SecondaryNav screen={screen} onNavigate={navigate} />
+        <div className="flex-1 overflow-y-auto bg-kbg">{renderScreen()}</div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

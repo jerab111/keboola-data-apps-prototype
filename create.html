@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keboola — Create Data App</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        dark: '#1a1a2e',
+        kblue: '#1F8FFF',
+        'kblue-light': '#EBF4FF',
+        'kblue-hover': '#1a7de6',
+        kgreen: '#4CAF50',
+        'kgreen-light': '#e8f5e9',
+        'kgreen-hover': '#43a047',
+        'kgreen-bg': '#e6f4ea',
+        kyellow: '#F57C00',
+        'kyellow-bg': '#fff3e0',
+        kred: '#E53935',
+        'kred-bg': '#fce8e6',
+        kpurple: '#7B1FA2',
+        'kpurple-bg': '#f3e8ff',
+        'kpurple-light': '#ede7f6',
+        kgray: { 50: '#ffffff', 75: '#fdfdfd', 100: '#f8f8f8', 200: '#e6e6e6', 300: '#d5d5d5', 400: '#b1b1b1', 500: '#909090', 600: '#6d6d6d', 700: '#464646', 800: '#222222', 900: '#000000' },
+        kborder: '#e6e6e6',
+        ktext: '#222222',
+        kbg: '#f8f8f8',
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+      },
+    },
+  },
+}
+</script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #222; background: #f8f8f8; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d5d5d5; border-radius: 3px; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes typing { 0%,80%,100% { opacity:.4; } 40% { opacity:1; } }
+  @keyframes progressBuild { from { width: 0; } to { width: 100%; } }
+  @keyframes slideRight { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+  .screen-enter { animation: fadeIn .2s ease; }
+  .msg-enter { animation: fadeInUp .3s ease both; }
+  .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: #1F8FFF; display: inline-block; animation: typing 1.2s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: .2s; }
+  .typing-dot:nth-child(3) { animation-delay: .4s; }
+  .creation-card { transition: all .35s cubic-bezier(.4,0,.2,1); }
+  .creation-card.hidden-card { opacity: 0; max-width: 0; overflow: hidden; padding: 0; margin: 0; border: none; }
+  .prompt-expand { transition: all .4s cubic-bezier(.4,0,.2,1); }
+  /* Code editor */
+  .code-editor-wrap { position: relative; background: #1e1e2e; border-radius: 0 0 8px 8px; overflow: hidden; }
+  .code-gutter { position: absolute; left: 0; top: 0; bottom: 0; width: 48px; background: #181825; color: #6c7086; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; padding: 12px 8px 12px 0; text-align: right; user-select: none; overflow: hidden; z-index: 1; }
+  .code-textarea { display: block; width: 100%; min-height: 400px; padding: 12px 16px 12px 56px; background: transparent; color: #cdd6f4; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; border: none; outline: none; resize: none; white-space: pre; overflow-x: auto; tab-size: 2; z-index: 2; position: relative; }
+  .code-textarea::selection { background: rgba(31,143,255,.3); }
+  /* Syntax tokens */
+  .syn-kw { color: #c678dd; }
+  .syn-str { color: #98c379; }
+  .syn-fn { color: #61afef; }
+  .syn-cm { color: #5c6370; font-style: italic; }
+  .syn-num { color: #d19a66; }
+  .syn-tag { color: #e06c75; }
+  .syn-attr { color: #d19a66; }
+  /* Mobile frame */
+  .mobile-frame { width: 375px; margin: 0 auto; border: 8px solid #222; border-radius: 32px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.15); background: #fff; }
+  .mobile-notch { height: 28px; background: #222; display: flex; align-items: center; justify-content: center; }
+  .mobile-notch-pill { width: 80px; height: 6px; background: #444; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback, useEffect, useRef } = React;
+
+// ─── Mock Data ───
+
+const PREBUILT_APPS = [
+  { name: 'Tableau Replacement', icon: '📊', desc: 'Interactive dashboards & charts', gradient: 'from-blue-100 to-purple-100' },
+  { name: 'Salesforce Dashboard', icon: '💼', desc: 'CRM analytics & pipeline view', gradient: 'from-green-100 to-blue-100' },
+  { name: 'Invoice Manager', icon: '🧾', desc: 'Create, send & track invoices', gradient: 'from-yellow-100 to-green-100' },
+  { name: 'Report Builder', icon: '📋', desc: 'Automated branded reports', gradient: 'from-red-100 to-yellow-100' },
+  { name: 'Data Explorer', icon: '🔍', desc: 'Search & filter any table', gradient: 'from-purple-100 to-pink-100' },
+  { name: 'Customer 360', icon: '👤', desc: 'Unified customer view', gradient: 'from-indigo-100 to-blue-100' },
+  { name: 'Churn Predictor', icon: '🔮', desc: 'ML churn risk scoring', gradient: 'from-orange-100 to-yellow-100' },
+  { name: 'Financial Dashboard', icon: '💰', desc: 'P&L, cash flow, budgets', gradient: 'from-green-100 to-emerald-100' },
+  { name: 'Marketing Attribution', icon: '📈', desc: 'Channel ROI analysis', gradient: 'from-pink-100 to-red-100' },
+  { name: 'Sales Pipeline', icon: '🎯', desc: 'Deal tracking & forecast', gradient: 'from-blue-100 to-cyan-100' },
+  { name: 'Support Tracker', icon: '🎫', desc: 'Ticket management', gradient: 'from-amber-100 to-orange-100' },
+  { name: 'Employee Directory', icon: '👥', desc: 'Team profiles & org chart', gradient: 'from-teal-100 to-green-100' },
+  { name: 'Project Status', icon: '📅', desc: 'Milestones & progress', gradient: 'from-violet-100 to-purple-100' },
+  { name: 'Survey Builder', icon: '✅', desc: 'Create & analyze surveys', gradient: 'from-lime-100 to-green-100' },
+  { name: 'Pricing Calculator', icon: '🧮', desc: 'Dynamic pricing tool', gradient: 'from-sky-100 to-blue-100' },
+  { name: 'Product Catalog', icon: '🛍', desc: 'Browse & manage products', gradient: 'from-rose-100 to-pink-100' },
+  { name: 'Booking Manager', icon: '📆', desc: 'Appointments & scheduling', gradient: 'from-cyan-100 to-teal-100' },
+  { name: 'Feedback Board', icon: '💬', desc: 'Collect user feedback', gradient: 'from-fuchsia-100 to-purple-100' },
+  { name: 'Usage Analytics', icon: '📉', desc: 'Product usage insights', gradient: 'from-slate-100 to-gray-100' },
+  { name: 'Inventory Monitor', icon: '📦', desc: 'Stock levels & alerts', gradient: 'from-emerald-100 to-teal-100' },
+];
+
+const KEBOOLA_TABLES = [
+  { key: 'sales_kpis', label: 'out.c-sales.kpis', rows: '45,230', updated: '15 min ago', columns: ['date', 'region', 'amount', 'deals_count', 'pipeline_value', 'rep_name'] },
+  { key: 'monthly_targets', label: 'out.c-sales.targets', rows: '120', updated: '1d ago', columns: ['month', 'region', 'target_amount', 'target_deals'] },
+  { key: 'crm_deals', label: 'out.c-crm.deals', rows: '8,412', updated: '2h ago', columns: ['deal_id', 'stage', 'value', 'close_date', 'owner'] },
+];
+
+const COLUMN_MAPPING = [
+  { column: 'amount', role: 'KPI \u2014 Revenue', icon: '💰' },
+  { column: 'deals_count', role: 'KPI \u2014 Deals Closed', icon: '🎯' },
+  { column: 'pipeline_value', role: 'KPI \u2014 Pipeline', icon: '📈' },
+  { column: 'region', role: 'Breakdown dimension', icon: '🌍' },
+  { column: 'date', role: 'Time series axis', icon: '📅' },
+  { column: 'rep_name', role: 'Top performers table', icon: '👤' },
+];
+
+const EXAMPLE_CHIPS = [
+  'Replace my Tableau dashboard with a sales KPI view',
+  'Build an invoicing app from my billing data',
+  'Customer support dashboard from CRM tables',
+  'Pipeline tracker with regional breakdown',
+];
+
+const GENERATED_CODE = `// Sales KPI Dashboard — generated by KAI
+// Data source: out.c-sales.kpis (45,230 rows)
+
+function SalesKPIDashboard({ data }) {
+  const [region, setRegion] = useState('All Regions');
+
+  const kpis = [
+    { label: 'Revenue', value: '$2.4M', change: '+18%',
+      query: 'SUM(amount)' },
+    { label: 'Deals Closed', value: '142', change: '+8%',
+      query: 'SUM(deals_count)' },
+    { label: 'Pipeline', value: '$5.1M', change: '+24%',
+      query: 'SUM(pipeline_value)' },
+  ];
+
+  const months = data
+    .groupBy('date', 'month')
+    .aggregate('amount', 'SUM');
+
+  const topReps = data
+    .groupBy('rep_name')
+    .aggregate('amount', 'SUM')
+    .orderBy('amount', 'DESC')
+    .limit(5);
+
+  return (
+    <AppShell title="Sales KPI Dashboard">
+      <RegionFilter value={region} onChange={setRegion} />
+      <KPIRow items={kpis} />
+      <BarChart data={months} xAxis="date" yAxis="amount" />
+      <div className="grid grid-cols-2 gap-4">
+        <TopPerformers data={topReps} />
+        <PipelineByRegion data={data} />
+      </div>
+    </AppShell>
+  );
+}`;
+
+// ─── Utility Components ───
+
+function Badge({ color, children }) {
+  const colors = {
+    green: 'bg-kgreen-light text-kgreen', yellow: 'bg-kyellow-bg text-kyellow',
+    red: 'bg-kred-bg text-kred', purple: 'bg-kpurple-bg text-kpurple',
+    gray: 'bg-kgray-100 text-kgray-600', blue: 'bg-kblue-light text-kblue',
+  };
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${colors[color] || colors.gray}`}>{children}</span>;
+}
+
+function Btn({ variant = 'outline', size = 'md', onClick, children, className = '', disabled }) {
+  const base = 'rounded-lg font-semibold cursor-pointer border-none transition-all inline-flex items-center gap-1.5';
+  const sizes = { sm: 'px-2.5 py-1 text-[11px]', md: 'px-4 py-[7px] text-[12px]', lg: 'px-5 py-2.5 text-[13px]' };
+  const variants = {
+    primary: 'bg-kgreen text-white hover:bg-kgreen-hover shadow-sm',
+    secondary: 'bg-kblue text-white hover:bg-kblue-hover shadow-sm',
+    outline: 'bg-white text-ktext border border-kborder hover:bg-kgray-100',
+    ghost: 'bg-transparent text-kblue hover:bg-kblue-light',
+    danger: 'bg-white text-kred border border-kred-bg hover:bg-kred-bg',
+  };
+  return (
+    <button className={`${base} ${sizes[size]} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`} onClick={disabled ? undefined : onClick}>
+      {children}
+    </button>
+  );
+}
+
+// ─── MinimalTopBar ───
+
+function MinimalTopBar({ screen, appName, onAppNameChange, previewReady, onNavigate }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [nameVal, setNameVal] = useState(appName || '');
+  const dropRef = useRef(null);
+
+  useEffect(() => { setNameVal(appName || ''); }, [appName]);
+
+  useEffect(() => {
+    const close = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setDropdownOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const saveName = () => { setEditing(false); if (nameVal.trim() && onAppNameChange) onAppNameChange(nameVal.trim()); };
+
+  return (
+    <div className="bg-white border-b border-kborder px-4 h-12 flex items-center justify-between relative z-50 flex-shrink-0">
+      <div className="flex items-center gap-3">
+        <div ref={dropRef} className="relative">
+          <div onClick={() => setDropdownOpen(!dropdownOpen)} className="w-8 h-8 cursor-pointer rounded-lg hover:bg-kgray-100 flex items-center justify-center transition-colors">
+            <svg viewBox="0 0 32 32" className="w-7 h-7"><circle cx="16" cy="16" r="15" fill="#1F8FFF" opacity=".12"/><text x="16" y="21" textAnchor="middle" fontSize="16" fontWeight="700" fill="#1F8FFF">K</text></svg>
+          </div>
+          {dropdownOpen && (
+            <div className="absolute top-10 left-0 bg-white border border-kborder rounded-lg shadow-lg w-52 py-1 z-50" style={{ animation: 'fadeIn .15s ease' }}>
+              <div onClick={() => { setDropdownOpen(false); window.location.href = 'index.html'; }} className="px-3 py-2 text-[12px] font-semibold text-ktext hover:bg-kblue-light cursor-pointer flex items-center gap-2">
+                <span className="text-kgray-400">←</span> Back to Data Apps
+              </div>
+              <div className="h-px bg-kborder my-1" />
+              {['Dashboard', 'Flows', 'Storage', 'Components'].map(item => (
+                <div key={item} className="px-3 py-2 text-[12px] text-kgray-600 hover:bg-kblue-light cursor-pointer">{item}</div>
+              ))}
+            </div>
+          )}
+        </div>
+        <span className="text-kgray-300">|</span>
+        <div className="flex items-center gap-1.5 text-[13px]">
+          {screen === 'builder' ? (
+            <>
+              <span className="text-kgray-500 hover:text-kblue cursor-pointer transition-colors" onClick={() => onNavigate('create')}>New App</span>
+              <span className="text-kgray-400 mx-0.5">/</span>
+              {editing ? (
+                <input autoFocus value={nameVal} onChange={e => setNameVal(e.target.value)}
+                  onBlur={saveName} onKeyDown={e => e.key === 'Enter' && saveName()}
+                  className="font-semibold text-ktext bg-kblue-light border border-kblue rounded px-1.5 py-0.5 text-[13px] outline-none w-56" />
+              ) : (
+                <span className="font-semibold text-ktext flex items-center gap-1.5">
+                  {appName || 'Untitled App'}
+                  <span onClick={() => setEditing(true)} className="text-kgray-400 hover:text-kblue cursor-pointer text-[11px]" title="Rename">&#9998;</span>
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="font-semibold text-ktext">New App</span>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2 items-center">
+        {screen === 'builder' && previewReady && (
+          <>
+            <Btn variant="outline" size="sm">Share</Btn>
+            <Btn variant="primary" size="sm">Deploy</Btn>
+          </>
+        )}
+        {screen === 'create' && <Btn variant="outline" size="sm" onClick={() => window.location.href = 'index.html'}>Cancel</Btn>}
+      </div>
+    </div>
+  );
+}
+
+// ─── GitConnectForm ───
+
+function GitConnectForm({ onConnect }) {
+  const [repoUrl, setRepoUrl] = useState('');
+  const [detecting, setDetecting] = useState(false);
+  const [detected, setDetected] = useState(false);
+  const [branch, setBranch] = useState('main');
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    if (repoUrl.length > 10 && !detected) {
+      setDetecting(true);
+      const t = setTimeout(() => { setDetecting(false); setDetected(true); }, 800);
+      return () => clearTimeout(t);
+    }
+    if (repoUrl.length <= 10) { setDetected(false); setDetecting(false); }
+  }, [repoUrl]);
+
+  if (connected) {
+    return (
+      <div className="p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 bg-kgreen-light rounded-lg flex items-center justify-center text-lg">✓</div>
+          <div>
+            <div className="text-[15px] font-bold text-kgreen">Repository Connected</div>
+            <div className="text-[11px] text-kgray-500">Push to <code className="text-kblue">{branch}</code> to deploy your app</div>
+          </div>
+        </div>
+        <div className="bg-kgray-100 rounded-lg p-3 font-mono text-[11px] text-kgray-600">
+          <div className="text-kgray-400 mb-1"># Clone and start developing</div>
+          <div>git clone {repoUrl || 'https://github.com/your-org/your-app'}</div>
+          <div>cd your-app</div>
+          <div>npm install && npm run dev</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-9 h-9 bg-gradient-to-br from-kblue to-kgreen rounded-lg flex items-center justify-center text-lg">💻</div>
+        <div className="flex-1">
+          <div className="text-[15px] font-bold text-ktext">Connect your repository</div>
+          <div className="text-[11px] text-kgray-500">Link a GitHub repo and push to deploy</div>
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className="text-[11px] font-semibold text-kgray-600 uppercase tracking-wider mb-1 block">Repository URL</label>
+          <input type="text" value={repoUrl} onChange={e => setRepoUrl(e.target.value)}
+            className="w-full bg-kgray-100 border border-kborder rounded-lg px-3 py-2.5 text-[12px] outline-none focus:border-kblue focus:bg-white transition-all placeholder:text-kgray-400"
+            placeholder="https://github.com/your-org/your-app" />
+        </div>
+        {detecting && (
+          <div className="flex items-center gap-2 text-[11px] text-kblue"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /><span className="ml-1">Detecting framework...</span></div>
+        )}
+        {detected && (
+          <div className="flex items-center gap-2 text-[11px] text-kgreen font-semibold" style={{ animation: 'fadeIn .2s ease' }}>
+            <span>✓</span> Detected: React / JavaScript
+          </div>
+        )}
+        <div>
+          <label className="text-[11px] font-semibold text-kgray-600 uppercase tracking-wider mb-1 block">Branch</label>
+          <select value={branch} onChange={e => setBranch(e.target.value)}
+            className="w-full bg-kgray-100 border border-kborder rounded-lg px-3 py-2.5 text-[12px] outline-none focus:border-kblue transition-all">
+            <option value="main">main</option>
+            <option value="develop">develop</option>
+            <option value="feature/dashboard">feature/dashboard</option>
+          </select>
+        </div>
+        <button onClick={() => { if (repoUrl || detected) { setConnected(true); if (onConnect) onConnect(); } }}
+          className={`w-full py-2.5 rounded-lg text-[12px] font-semibold transition-all ${repoUrl || detected ? 'bg-kgreen text-white hover:bg-kgreen-hover cursor-pointer' : 'bg-kgray-200 text-kgray-500 cursor-not-allowed'}`}>
+          Connect Repository
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── CreateEntry ───
+
+function CreateEntry({ onNavigate, onSubmitPrompt }) {
+  const [prompt, setPrompt] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+
+  const handleSubmit = () => { if (prompt.trim()) { onSubmitPrompt(prompt); onNavigate('builder'); } };
+
+  return (
+    <div className="screen-enter flex flex-col items-center justify-start pt-16 px-6 min-h-full">
+      {/* Hero prompt */}
+      <div className="w-10 h-10 bg-gradient-to-br from-kpurple to-kblue rounded-xl flex items-center justify-center text-xl mb-4">🤖</div>
+      <h1 className="text-[22px] font-bold text-ktext mb-1">What do you want to build?</h1>
+      <p className="text-[13px] text-kgray-500 mb-6">Describe your app and KAI will create it from your Keboola data</p>
+
+      <div className="w-full max-w-[640px] mb-4">
+        <div className="flex items-center gap-2 bg-white border-2 border-kborder rounded-xl px-4 py-3 focus-within:border-kblue focus-within:shadow-[0_0_0_3px_rgba(31,143,255,.1)] transition-all">
+          <input ref={inputRef} type="text" value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            className="flex-1 bg-transparent border-none outline-none text-[14px] text-ktext placeholder:text-kgray-400"
+            placeholder="A sales dashboard that shows revenue by region from my sales data..." />
+          <button onClick={handleSubmit}
+            className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold transition-all flex-shrink-0 ${prompt.trim() ? 'bg-kblue hover:bg-kblue-hover shadow-sm cursor-pointer' : 'bg-kgray-300 cursor-not-allowed'}`}>→</button>
+        </div>
+      </div>
+
+      <div className="flex gap-2 flex-wrap justify-center mb-12 max-w-[640px]">
+        {EXAMPLE_CHIPS.map((chip, i) => (
+          <span key={i} onClick={() => setPrompt(chip)} className="px-3 py-1.5 bg-kblue-light border border-kblue/20 rounded-full text-[11px] text-kblue cursor-pointer hover:bg-kblue/10 transition-colors">{chip}</span>
+        ))}
+      </div>
+
+      {/* Top 5 templates */}
+      <div className="w-full max-w-[640px]">
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-[13px] font-semibold text-kgray-600">Or start from a template</span>
+          <span className="text-[12px] text-kblue font-semibold cursor-pointer hover:underline">Browse all templates →</span>
+        </div>
+        <div className="grid grid-cols-5 gap-3">
+          {PREBUILT_APPS.slice(0, 5).map((app, i) => (
+            <div key={i} className="bg-white border border-kborder rounded-lg overflow-hidden cursor-pointer hover:border-kblue hover:shadow-sm transition-all group">
+              <div className={`h-[48px] bg-gradient-to-br ${app.gradient} flex items-center justify-center text-xl group-hover:scale-105 transition-transform`}>{app.icon}</div>
+              <div className="p-2">
+                <div className="text-[11px] font-semibold text-ktext leading-tight">{app.name}</div>
+                <div className="text-[9px] text-kgray-500 mt-0.5">{app.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SampleDashboard ───
+
+function SampleDashboard() {
+  return (
+    <div className="bg-white border border-kborder rounded-xl shadow-lg overflow-hidden" style={{ animation: 'slideUp .5s ease' }}>
+      <div className="bg-dark text-white px-5 py-3 flex justify-between items-center">
+        <div className="flex items-center gap-2"><span className="text-base">📊</span><span className="font-semibold text-[13px]">Sales KPI Dashboard</span></div>
+        <div className="flex items-center gap-2">
+          <select className="bg-white/10 text-white border border-white/20 rounded-md px-2 py-0.5 text-[11px] outline-none"><option>All Regions</option><option>EMEA</option><option>Americas</option><option>APAC</option></select>
+          <span className="text-[9px] text-white/40 font-mono">out.c-sales.kpis</span>
+        </div>
+      </div>
+      <div className="p-5 bg-kgray-75">
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-kblue-light/50 border border-kblue/10 rounded-lg" style={{ animation: 'fadeInUp .3s ease both' }}>
+          <span className="inline-flex items-center justify-center w-4 h-4 bg-kblue rounded text-white text-[8px] font-bold">K</span>
+          <span className="text-[10px] text-kblue font-medium">Live data from <span className="font-mono font-bold">out.c-sales.kpis</span> · 45,230 rows · Last refreshed 15 min ago</span>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          {[
+            { l: 'SUM(amount)', display: 'Revenue', v: '$2.4M', c: '↑ 18%', col: 'amount' },
+            { l: 'SUM(deals_count)', display: 'Deals Closed', v: '142', c: '↑ 8%', col: 'deals_count' },
+            { l: 'SUM(pipeline_value)', display: 'Pipeline', v: '$5.1M', c: '↑ 24%', col: 'pipeline_value' },
+          ].map((kpi, i) => (
+            <div key={i} className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: `fadeInUp .4s ease ${.1*i}s both` }}>
+              <div className="flex justify-between items-start">
+                <div className="text-[10px] text-kgray-500 uppercase tracking-wider">{kpi.display}</div>
+                <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1 py-0.5 rounded">{kpi.col}</span>
+              </div>
+              <div className="text-[24px] font-bold text-ktext mt-1">{kpi.v}</div>
+              <div className="text-[11px] text-kgreen font-semibold mt-0.5">{kpi.c} vs last month</div>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: 'fadeInUp .4s ease .4s both' }}>
+          <div className="flex justify-between items-center mb-3">
+            <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold">amount by date — Monthly 2025</div>
+            <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1.5 py-0.5 rounded">GROUP BY date</span>
+          </div>
+          <div className="flex items-end gap-2 h-[140px]">
+            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => {
+              const v = [35,42,38,55,62,58,72,80,75,90,95,88][i];
+              return (
+                <div key={m} className="flex-1 flex flex-col items-center">
+                  <div className="w-full bg-kblue rounded-t" style={{ height: `${v}%`, opacity: 0.5+(v/200), animation: `fadeInUp .3s ease ${.05*i}s both` }} />
+                  <div className="text-[9px] text-kgray-500 mt-1">{m}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: 'fadeInUp .4s ease .6s both' }}>
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold">Top by rep_name</div>
+              <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1.5 py-0.5 rounded">rep_name</span>
+            </div>
+            {['Sarah Chen — $420K','Mike Johnson — $380K','Lisa Park — $340K'].map((p, i) => (
+              <div key={i} className="flex justify-between py-1.5 border-b border-kgray-200 text-[11px] last:border-0">
+                <span>{i+1}. {p.split(' — ')[0]}</span><span className="font-semibold">{p.split(' — ')[1]}</span>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-lg p-4 border border-kborder" style={{ animation: 'fadeInUp .4s ease .7s both' }}>
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold">pipeline_value by region</div>
+              <span className="text-[8px] font-mono text-kgray-400 bg-kgray-100 px-1.5 py-0.5 rounded">region</span>
+            </div>
+            {[{s:'EMEA',v:'$1.8M',p:35},{s:'Americas',v:'$1.4M',p:27},{s:'APAC',v:'$1.1M',p:22},{s:'LATAM',v:'$0.8M',p:16}].map((s, i) => (
+              <div key={i} className="mb-1.5">
+                <div className="flex justify-between text-[11px] mb-0.5"><span>{s.s}</span><span className="font-semibold">{s.v}</span></div>
+                <div className="h-1 bg-kgray-200 rounded-full overflow-hidden"><div className="h-full bg-kblue rounded-full" style={{width:`${s.p}%`}} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="border-t border-kborder px-5 py-2 flex justify-between items-center bg-kgray-75 text-[10px] text-kgray-500">
+        <span><span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-gradient-to-br from-kgreen to-kgreen-hover rounded text-white text-[7px] font-bold mr-1">K</span> Powered by Keboola · <span className="font-mono">out.c-sales.kpis</span> · 45,230 rows</span>
+        <span>Region: All · Data refreshed 15 min ago</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── CodeEditor ───
+
+function CodeEditor({ code, onChange, onApply }) {
+  const textareaRef = useRef(null);
+  const gutterRef = useRef(null);
+  const lines = code.split('\n');
+
+  const handleScroll = () => {
+    if (gutterRef.current && textareaRef.current) {
+      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  };
+
+  return (
+    <div style={{ animation: 'slideRight .3s ease' }}>
+      <div className="flex items-center justify-between bg-[#181825] px-4 py-2 rounded-t-lg">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-[#cdd6f4] bg-[#1e1e2e] px-2.5 py-1 rounded font-mono">app.jsx</span>
+          <span className="text-[9px] text-[#6c7086]">Generated by KAI</span>
+        </div>
+        <button onClick={onApply} className="px-3 py-1 bg-kgreen text-white rounded-md text-[11px] font-semibold hover:bg-kgreen-hover cursor-pointer transition-colors">Apply Changes</button>
+      </div>
+      <div className="code-editor-wrap">
+        <div ref={gutterRef} className="code-gutter">
+          {lines.map((_, i) => <div key={i}>{i + 1}</div>)}
+        </div>
+        <textarea ref={textareaRef} className="code-textarea" value={code} onChange={e => onChange(e.target.value)}
+          onScroll={handleScroll} spellCheck={false} />
+      </div>
+    </div>
+  );
+}
+
+// ─── ChatPanel ───
+
+function ChatPanel({ prompt, onPreviewReady, onAppName }) {
+  const [messages, setMessages] = useState([]);
+  const [step, setStep] = useState(0);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [chatInput, setChatInput] = useState('');
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setMessages([{ type: 'user', text: prompt }]);
+      if (onAppName) onAppName('Sales KPI Dashboard');
+      setStep(1);
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    if (step === 1) {
+      setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 600);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai',
+          text: 'I scanned your Keboola project and found 3 tables that match your request. Which should I use?',
+          tableOptions: KEBOOLA_TABLES,
+        }]));
+        setStep(2);
+      }, 2200);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 3) {
+      setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 400);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai',
+          text: "I read the schema of out.c-sales.kpis (45,230 rows, 6 columns). Here's how I'll map the columns to your dashboard:",
+          columnMapping: COLUMN_MAPPING,
+        }]));
+        setStep(4);
+      }, 1800);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 5) {
+      setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 300);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai', text: 'Building your dashboard... Querying out.c-sales.kpis for the latest data and generating the UI.',
+        }]));
+      }, 1200);
+      setTimeout(() => {
+        if (onPreviewReady) onPreviewReady(true);
+        setMessages(prev => [...prev, {
+          type: 'kai',
+          text: 'Your app is live with real data from out.c-sales.kpis! The KPIs show aggregated amount, deals_count, and pipeline_value. You can iterate by describing changes, switch to Code view to edit directly, or deploy when ready.',
+        }]);
+        setStep(6);
+      }, 3500);
+    }
+  }, [step]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const handleSelectTable = (key) => {
+    setSelectedTable(key);
+    const table = KEBOOLA_TABLES.find(t => t.key === key);
+    setMessages(prev => prev.map(m => m.tableOptions ? { ...m, selectedOption: key } : m).concat([{ type: 'user', text: `Use ${table.label}` }]));
+    setStep(3);
+  };
+
+  const handleConfirmMapping = () => {
+    setMessages(prev => prev.map(m => m.columnMapping ? { ...m, confirmed: true } : m).concat([{ type: 'user', text: 'Looks good, build it!' }]));
+    setStep(5);
+  };
+
+  const handleFollowUp = () => {
+    if (!chatInput.trim() || step < 6) return;
+    const input = chatInput.trim();
+    setChatInput('');
+    setMessages(prev => [...prev, { type: 'user', text: input }]);
+    setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 500);
+    const lower = input.toLowerCase();
+    let response = "I've made the requested changes. Check the preview to see the updates.";
+    if (lower.includes('color') || lower.includes('theme')) response = "I've updated the color scheme to a warmer palette. The KPI cards now use a blue-to-green gradient. Check the preview!";
+    else if (lower.includes('chart') || lower.includes('graph') || lower.includes('line')) response = "I've added a line chart overlay showing the revenue trend over time alongside the bar chart.";
+    else if (lower.includes('filter') || lower.includes('region')) response = "I've added an interactive region filter dropdown to the dashboard header. Users can now filter all data by EMEA, Americas, or APAC.";
+    else if (lower.includes('table') || lower.includes('data')) response = "I've added a detailed data table below the charts showing the raw records with sorting and search capabilities.";
+    else if (lower.includes('mobile') || lower.includes('responsive')) response = "I've optimized the layout for mobile. KPI cards now stack vertically and the chart adapts to smaller screens.";
+    setTimeout(() => {
+      setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{ type: 'kai', text: response + ' Preview updated.' }]));
+    }, 1800);
+  };
+
+  const handleCodeApply = () => {
+    setMessages(prev => [...prev, { type: 'user', text: 'I updated the code directly.' }]);
+    setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 400);
+    setTimeout(() => {
+      setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+        type: 'kai', text: 'Got it \u2014 I see your code changes. The preview has been updated to reflect your edits.',
+      }]));
+    }, 1200);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-4 py-3 border-b border-kborder flex items-center gap-2 flex-shrink-0">
+        <div className="w-6 h-6 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-xs">🤖</div>
+        <span className="text-[13px] font-bold text-ktext">KAI Assistant</span>
+        <span className="text-[10px] text-kgray-500 ml-auto">Powered by Keboola AI</span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.map((msg, i) => {
+          if (msg.type === 'typing') return (
+            <div key={i} className="flex items-center gap-2 msg-enter">
+              <div className="w-7 h-7 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-[10px]">🤖</div>
+              <div className="flex gap-1 px-3 py-2 bg-kgray-100 rounded-xl"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></div>
+            </div>
+          );
+          if (msg.type === 'user') return (
+            <div key={i} className="flex justify-end msg-enter" style={{ animationDelay: `${i * 0.05}s` }}>
+              <div className="bg-kblue-light text-ktext rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[85%] text-[12px] leading-relaxed">{msg.text}</div>
+            </div>
+          );
+          return (
+            <div key={i} className="flex gap-2 msg-enter" style={{ animationDelay: `${i * 0.05}s` }}>
+              <div className="w-7 h-7 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">🤖</div>
+              <div className="flex-1">
+                <div className="bg-white border border-kborder rounded-2xl rounded-bl-sm px-4 py-2.5 text-[12px] leading-relaxed text-kgray-700">{msg.text}</div>
+                {msg.tableOptions && (
+                  <div className="flex flex-col gap-2 mt-2.5">
+                    {msg.tableOptions.map(opt => (
+                      <div key={opt.key} onClick={() => !msg.selectedOption && handleSelectTable(opt.key)}
+                        className={`rounded-lg text-[11px] transition-all overflow-hidden ${
+                          msg.selectedOption === opt.key ? 'bg-kblue-light border-2 border-kblue' :
+                          msg.selectedOption ? 'bg-kgray-100 border border-kgray-200 opacity-50 cursor-default' :
+                          'bg-white border border-kborder hover:border-kblue hover:shadow-sm cursor-pointer'
+                        }`}>
+                        <div className="px-3 py-2 flex items-center gap-2">
+                          {msg.selectedOption === opt.key && <span className="text-kblue font-bold">✓</span>}
+                          <span className="font-mono font-bold text-[12px]">{opt.label}</span>
+                          <span className="text-kgray-500 ml-auto text-[10px]">{opt.rows} rows · Updated {opt.updated}</span>
+                        </div>
+                        {(!msg.selectedOption || msg.selectedOption === opt.key) && (
+                          <div className="px-3 pb-2 flex flex-wrap gap-1">
+                            {opt.columns.map(col => (
+                              <span key={col} className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${msg.selectedOption === opt.key ? 'bg-kblue/10 text-kblue' : 'bg-kgray-100 text-kgray-600'}`}>{col}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {msg.columnMapping && (
+                  <div className="mt-2.5">
+                    <div className="bg-white border border-kborder rounded-lg overflow-hidden">
+                      {msg.columnMapping.map((cm, ci) => (
+                        <div key={ci} className={`flex items-center gap-2.5 px-3 py-2 text-[11px] ${ci < msg.columnMapping.length - 1 ? 'border-b border-kgray-200' : ''}`}>
+                          <span className="text-base">{cm.icon}</span>
+                          <span className="font-mono font-bold text-kblue">{cm.column}</span>
+                          <span className="text-kgray-400">→</span>
+                          <span className="text-kgray-700">{cm.role}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {!msg.confirmed && (
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={handleConfirmMapping} className="px-3.5 py-1.5 bg-kblue text-white rounded-lg text-[11px] font-semibold hover:bg-kblue-hover cursor-pointer transition-colors">Looks good, build it!</button>
+                        <button className="px-3.5 py-1.5 bg-white border border-kborder text-kgray-600 rounded-lg text-[11px] font-semibold hover:bg-kgray-100 cursor-pointer transition-colors">Adjust mapping</button>
+                      </div>
+                    )}
+                    {msg.confirmed && <div className="mt-1.5 text-[10px] text-kgreen font-semibold">✓ Mapping confirmed</div>}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={chatEndRef} />
+      </div>
+      <div className="p-3 border-t border-kborder flex-shrink-0">
+        <div className="flex items-center gap-2 bg-kgray-100 rounded-xl px-4 py-2.5">
+          <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleFollowUp()}
+            className={`flex-1 bg-transparent border-none outline-none text-[12px] text-ktext placeholder:text-kgray-400 ${step < 6 ? 'opacity-50' : ''}`}
+            placeholder={step < 6 ? 'KAI is working...' : 'Ask KAI to make changes...'}
+            disabled={step < 6} />
+          <span onClick={handleFollowUp}
+            className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition-colors ${chatInput.trim() && step >= 6 ? 'bg-kblue text-white cursor-pointer' : 'bg-kgray-300 text-white cursor-not-allowed'}`}>↵</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PreviewPanel ───
+
+function PreviewPanel({ previewReady, step, code, onCodeChange, onCodeApply }) {
+  const [viewMode, setViewMode] = useState('desktop');
+  const [gitOpen, setGitOpen] = useState(false);
+  const [gitConnected, setGitConnected] = useState(false);
+
+  return (
+    <div className="flex flex-col h-full bg-kbg relative">
+      <div className="px-4 py-3 border-b border-kborder bg-white flex items-center justify-between flex-shrink-0">
+        <span className="text-[13px] font-bold text-ktext">Preview</span>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-0.5 bg-kgray-100 rounded-lg p-0.5">
+            {[
+              { key: 'desktop', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, title: 'Desktop' },
+              { key: 'mobile', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>, title: 'Mobile' },
+              { key: 'code', icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>, title: 'Code' },
+            ].map(v => (
+              <span key={v.key} onClick={() => { setViewMode(v.key); setGitOpen(false); }} title={v.title}
+                className={`p-1.5 rounded-md cursor-pointer transition-colors flex items-center ${viewMode === v.key && !gitOpen ? 'bg-white text-kblue shadow-sm' : 'text-kgray-500 hover:text-kgray-700'}`}>{v.icon}</span>
+            ))}
+          </div>
+          <div className="w-px h-4 bg-kborder" />
+          <span onClick={() => setGitOpen(!gitOpen)} title={gitConnected ? 'GitHub connected' : 'Connect GitHub'}
+            className={`p-1.5 rounded-md cursor-pointer transition-colors flex items-center relative ${gitOpen ? 'bg-kgray-800 text-white' : 'text-kgray-500 hover:bg-kgray-100'}`}>
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            {gitConnected && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-kgreen rounded-full border-2 border-white" />}
+          </span>
+        </div>
+      </div>
+      {/* GitHub connect slide-over */}
+      {gitOpen && (
+        <div className="absolute top-[49px] left-0 right-0 bottom-0 z-20 flex justify-end" onClick={(e) => { if (e.target === e.currentTarget) setGitOpen(false); }}>
+          <div className="w-[340px] bg-white border-l border-kborder shadow-lg h-full overflow-y-auto" style={{ animation: 'slideRight .2s ease' }}>
+            <div className="flex items-center justify-between px-4 pt-3 pb-0">
+              <span className="text-[12px] font-semibold text-ktext">Connect to GitHub</span>
+              <span onClick={() => setGitOpen(false)} className="text-[11px] text-kgray-400 hover:text-ktext cursor-pointer">✕</span>
+            </div>
+            <GitConnectForm onConnect={() => setGitConnected(true)} />
+          </div>
+        </div>
+      )}
+      <div className="flex-1 p-6 overflow-y-auto">
+        {!previewReady ? (
+          <div className="h-full flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-kpurple-light to-kblue-light rounded-2xl flex items-center justify-center text-3xl mb-4">
+              {step < 5 ? '🤖' : '⏳'}
+            </div>
+            <div className="text-[14px] font-semibold text-ktext mb-1">
+              {step < 3 ? 'KAI is scanning your project...' : step < 5 ? 'Confirm the data mapping to start building' : 'Building your app...'}
+            </div>
+            <div className="text-[12px] text-kgray-500">
+              {step < 3 ? 'Analyzing tables in your Keboola Storage' : step < 5 ? 'Review how KAI will map your columns' : 'Querying out.c-sales.kpis and generating UI'}
+            </div>
+            {step >= 5 && (
+              <div className="w-48 h-1.5 bg-kgray-200 rounded-full mt-4 overflow-hidden">
+                <div className="h-full bg-kblue rounded-full" style={{ animation: 'progressBuild 2s ease forwards' }} />
+              </div>
+            )}
+            {step < 5 && (
+              <div className="mt-5 text-left bg-white border border-kborder rounded-lg p-3 max-w-[280px]">
+                <div className="text-[10px] text-kgray-500 uppercase tracking-wider font-semibold mb-2">Your Project Data</div>
+                {[{b:'out.c-sales',t:3},{b:'out.c-crm',t:2},{b:'out.c-marketing',t:4}].map((b, i) => (
+                  <div key={i} className="flex justify-between text-[11px] py-1 border-b border-kgray-200 last:border-0">
+                    <span className="font-mono text-kgray-600">{b.b}</span>
+                    <span className="text-kgray-400">{b.t} tables</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : viewMode === 'desktop' ? (
+          <div className="max-w-3xl mx-auto"><SampleDashboard /></div>
+        ) : viewMode === 'mobile' ? (
+          <div className="flex justify-center pt-4">
+            <div className="mobile-frame">
+              <div className="mobile-notch"><div className="mobile-notch-pill" /></div>
+              <div className="max-h-[600px] overflow-y-auto" style={{ transform: 'scale(0.92)', transformOrigin: 'top center' }}>
+                <SampleDashboard />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-3xl mx-auto">
+            {gitConnected ? (
+              <div className="flex rounded-lg overflow-hidden border border-kborder shadow-lg" style={{ animation: 'slideRight .3s ease' }}>
+                {/* File tree sidebar */}
+                <div className="w-[180px] bg-[#181825] border-r border-[#313244] flex-shrink-0">
+                  <div className="px-3 py-2 text-[10px] text-[#6c7086] uppercase tracking-wider font-semibold border-b border-[#313244]">Files</div>
+                  <div className="py-1">
+                    {[
+                      { name: 'app.jsx', icon: '📄', active: true },
+                      { name: 'index.html', icon: '📄', active: false },
+                      { name: 'styles.css', icon: '🎨', active: false },
+                      { name: 'package.json', icon: '📦', active: false },
+                      { name: 'keboola.config.js', icon: '⚙️', active: false },
+                    ].map((f, i) => (
+                      <div key={i} className={`flex items-center gap-2 px-3 py-1.5 text-[11px] cursor-pointer transition-colors ${f.active ? 'bg-[#1e1e2e] text-[#cdd6f4]' : 'text-[#6c7086] hover:text-[#cdd6f4] hover:bg-[#1e1e2e]/50'}`}>
+                        <span className="text-[10px]">{f.icon}</span>
+                        <span className="font-mono">{f.name}</span>
+                      </div>
+                    ))}
+                    <div className="px-3 py-1.5 text-[10px] text-[#6c7086] mt-1 border-t border-[#313244] pt-2">
+                      <span className="flex items-center gap-1"><svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> main · synced</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Editor */}
+                <div className="flex-1">
+                  <CodeEditor code={code} onChange={onCodeChange} onApply={onCodeApply} />
+                </div>
+              </div>
+            ) : (
+              <CodeEditor code={code} onChange={onCodeChange} onApply={onCodeApply} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── AIBuilder ───
+
+function AIBuilder({ prompt, onNavigate }) {
+  const [previewReady, setPreviewReady] = useState(false);
+  const [appName, setAppName] = useState('');
+  const [code, setCode] = useState(GENERATED_CODE);
+  const [step, setStep] = useState(0);
+  const chatRef = useRef(null);
+
+  const handleCodeApply = () => {
+    if (chatRef.current && chatRef.current.handleCodeApply) chatRef.current.handleCodeApply();
+  };
+
+  return (
+    <div className="screen-enter flex h-full">
+      <div className="w-[42%] border-r border-kborder bg-white flex flex-col">
+        <ChatPanelWrapper ref={chatRef} prompt={prompt} onPreviewReady={setPreviewReady} onAppName={setAppName} onStepChange={setStep} />
+      </div>
+      <div className="flex-1 flex flex-col">
+        <PreviewPanel previewReady={previewReady} step={step} code={code} onCodeChange={setCode} onCodeApply={handleCodeApply} />
+      </div>
+    </div>
+  );
+}
+
+const ChatPanelWrapper = React.forwardRef(function ChatPanelWrapper({ prompt, onPreviewReady, onAppName, onStepChange }, ref) {
+  const [messages, setMessages] = useState([]);
+  const [step, setStep] = useState(0);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [chatInput, setChatInput] = useState('');
+  const chatEndRef = useRef(null);
+
+  React.useImperativeHandle(ref, () => ({
+    handleCodeApply() {
+      setMessages(prev => [...prev, { type: 'user', text: 'I updated the code directly.' }]);
+      setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 400);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai', text: 'Got it \u2014 I see your code changes. The preview has been updated to reflect your edits.',
+        }]));
+      }, 1200);
+    }
+  }));
+
+  useEffect(() => { if (onStepChange) onStepChange(step); }, [step]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      setMessages([{ type: 'user', text: prompt }]);
+      if (onAppName) onAppName('Sales KPI Dashboard');
+      setStep(1);
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    if (step === 1) {
+      setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 600);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai', text: 'I scanned your Keboola project and found 3 tables that match your request. Which should I use?', tableOptions: KEBOOLA_TABLES,
+        }]));
+        setStep(2);
+      }, 2200);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 3) {
+      setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 400);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai', text: "I read the schema of out.c-sales.kpis (45,230 rows, 6 columns). Here's how I'll map the columns:", columnMapping: COLUMN_MAPPING,
+        }]));
+        setStep(4);
+      }, 1800);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 5) {
+      setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 300);
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{
+          type: 'kai', text: 'Building your dashboard... Querying out.c-sales.kpis and generating the UI.',
+        }]));
+      }, 1200);
+      setTimeout(() => {
+        if (onPreviewReady) onPreviewReady(true);
+        setMessages(prev => [...prev, {
+          type: 'kai', text: 'Your app is live! KPIs show aggregated amount, deals_count, and pipeline_value. Iterate via chat, switch to Code view to edit directly, or deploy when ready.',
+        }]);
+        setStep(6);
+      }, 3500);
+    }
+  }, [step]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const handleSelectTable = (key) => {
+    setSelectedTable(key);
+    const table = KEBOOLA_TABLES.find(t => t.key === key);
+    setMessages(prev => prev.map(m => m.tableOptions ? { ...m, selectedOption: key } : m).concat([{ type: 'user', text: `Use ${table.label}` }]));
+    setStep(3);
+  };
+
+  const handleConfirmMapping = () => {
+    setMessages(prev => prev.map(m => m.columnMapping ? { ...m, confirmed: true } : m).concat([{ type: 'user', text: 'Looks good, build it!' }]));
+    setStep(5);
+  };
+
+  const handleFollowUp = () => {
+    if (!chatInput.trim() || step < 6) return;
+    const input = chatInput.trim();
+    setChatInput('');
+    setMessages(prev => [...prev, { type: 'user', text: input }]);
+    setTimeout(() => setMessages(prev => [...prev, { type: 'typing' }]), 500);
+    const lower = input.toLowerCase();
+    let response = "I've made the requested changes. Check the preview.";
+    if (lower.includes('color') || lower.includes('theme')) response = "Updated the color scheme to a warmer palette. KPI cards now use a blue-to-green gradient.";
+    else if (lower.includes('chart') || lower.includes('graph') || lower.includes('line')) response = "Added a line chart overlay showing the revenue trend over time.";
+    else if (lower.includes('filter') || lower.includes('region')) response = "Added an interactive region filter dropdown to the header.";
+    else if (lower.includes('table') || lower.includes('data')) response = "Added a detailed data table below the charts with sorting and search.";
+    else if (lower.includes('mobile') || lower.includes('responsive')) response = "Optimized the layout for mobile. KPI cards now stack vertically.";
+    setTimeout(() => {
+      setMessages(prev => prev.filter(m => m.type !== 'typing').concat([{ type: 'kai', text: response + ' Preview updated.' }]));
+    }, 1800);
+  };
+
+  return (
+    <>
+      <div className="px-4 py-3 border-b border-kborder flex items-center gap-2 flex-shrink-0">
+        <div className="w-6 h-6 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-xs">🤖</div>
+        <span className="text-[13px] font-bold text-ktext">KAI Assistant</span>
+        <span className="text-[10px] text-kgray-500 ml-auto">Powered by Keboola AI</span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.map((msg, i) => {
+          if (msg.type === 'typing') return (
+            <div key={i} className="flex items-center gap-2 msg-enter">
+              <div className="w-7 h-7 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-[10px]">🤖</div>
+              <div className="flex gap-1 px-3 py-2 bg-kgray-100 rounded-xl"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></div>
+            </div>
+          );
+          if (msg.type === 'user') return (
+            <div key={i} className="flex justify-end msg-enter" style={{ animationDelay: `${i * 0.05}s` }}>
+              <div className="bg-kblue-light text-ktext rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[85%] text-[12px] leading-relaxed">{msg.text}</div>
+            </div>
+          );
+          return (
+            <div key={i} className="flex gap-2 msg-enter" style={{ animationDelay: `${i * 0.05}s` }}>
+              <div className="w-7 h-7 bg-gradient-to-br from-kpurple to-kblue rounded-md flex items-center justify-center text-[10px] flex-shrink-0 mt-0.5">🤖</div>
+              <div className="flex-1">
+                <div className="bg-white border border-kborder rounded-2xl rounded-bl-sm px-4 py-2.5 text-[12px] leading-relaxed text-kgray-700">{msg.text}</div>
+                {msg.tableOptions && (
+                  <div className="flex flex-col gap-2 mt-2.5">
+                    {msg.tableOptions.map(opt => (
+                      <div key={opt.key} onClick={() => !msg.selectedOption && handleSelectTable(opt.key)}
+                        className={`rounded-lg text-[11px] transition-all overflow-hidden ${
+                          msg.selectedOption === opt.key ? 'bg-kblue-light border-2 border-kblue' :
+                          msg.selectedOption ? 'bg-kgray-100 border border-kgray-200 opacity-50 cursor-default' :
+                          'bg-white border border-kborder hover:border-kblue hover:shadow-sm cursor-pointer'
+                        }`}>
+                        <div className="px-3 py-2 flex items-center gap-2">
+                          {msg.selectedOption === opt.key && <span className="text-kblue font-bold">✓</span>}
+                          <span className="font-mono font-bold text-[12px]">{opt.label}</span>
+                          <span className="text-kgray-500 ml-auto text-[10px]">{opt.rows} rows · Updated {opt.updated}</span>
+                        </div>
+                        {(!msg.selectedOption || msg.selectedOption === opt.key) && (
+                          <div className="px-3 pb-2 flex flex-wrap gap-1">
+                            {opt.columns.map(col => (
+                              <span key={col} className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${msg.selectedOption === opt.key ? 'bg-kblue/10 text-kblue' : 'bg-kgray-100 text-kgray-600'}`}>{col}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {msg.columnMapping && (
+                  <div className="mt-2.5">
+                    <div className="bg-white border border-kborder rounded-lg overflow-hidden">
+                      {msg.columnMapping.map((cm, ci) => (
+                        <div key={ci} className={`flex items-center gap-2.5 px-3 py-2 text-[11px] ${ci < msg.columnMapping.length - 1 ? 'border-b border-kgray-200' : ''}`}>
+                          <span className="text-base">{cm.icon}</span>
+                          <span className="font-mono font-bold text-kblue">{cm.column}</span>
+                          <span className="text-kgray-400">→</span>
+                          <span className="text-kgray-700">{cm.role}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {!msg.confirmed ? (
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={handleConfirmMapping} className="px-3.5 py-1.5 bg-kblue text-white rounded-lg text-[11px] font-semibold hover:bg-kblue-hover cursor-pointer transition-colors">Looks good, build it!</button>
+                        <button className="px-3.5 py-1.5 bg-white border border-kborder text-kgray-600 rounded-lg text-[11px] font-semibold hover:bg-kgray-100 cursor-pointer transition-colors">Adjust mapping</button>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 text-[10px] text-kgreen font-semibold">✓ Mapping confirmed</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={chatEndRef} />
+      </div>
+      <div className="p-3 border-t border-kborder flex-shrink-0">
+        <div className="flex items-center gap-2 bg-kgray-100 rounded-xl px-4 py-2.5">
+          <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleFollowUp()}
+            className={`flex-1 bg-transparent border-none outline-none text-[12px] text-ktext placeholder:text-kgray-400 ${step < 6 ? 'opacity-50' : ''}`}
+            placeholder={step < 6 ? 'KAI is working...' : 'Ask KAI to make changes...'}
+            disabled={step < 6} />
+          <span onClick={handleFollowUp}
+            className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition-colors ${chatInput.trim() && step >= 6 ? 'bg-kblue text-white cursor-pointer' : 'bg-kgray-300 text-white cursor-not-allowed'}`}>↵</span>
+        </div>
+      </div>
+    </>
+  );
+});
+
+// ─── App Root ───
+
+function App() {
+  const [screen, setScreen] = useState('create');
+  const [prompt, setPrompt] = useState('');
+  const [appName, setAppName] = useState('');
+  const [previewReady, setPreviewReady] = useState(false);
+  const navigate = useCallback((s) => { if (s === 'create') { setPreviewReady(false); setAppName(''); } setScreen(s); }, []);
+
+  return (
+    <div className="flex flex-col h-screen">
+      <MinimalTopBar screen={screen} appName={appName} onAppNameChange={setAppName} previewReady={previewReady} onNavigate={navigate} />
+      <div className="flex-1 overflow-hidden">
+        {screen === 'create' && <CreateEntry onNavigate={navigate} onSubmitPrompt={setPrompt} />}
+        {screen === 'builder' && <AIBuilderConnected prompt={prompt} onNavigate={navigate} onAppName={setAppName} onPreviewReady={setPreviewReady} />}
+      </div>
+    </div>
+  );
+}
+
+function AIBuilderConnected({ prompt, onNavigate, onAppName, onPreviewReady }) {
+  const [code, setCode] = useState(GENERATED_CODE);
+  const [step, setStep] = useState(0);
+  const [previewReady, setPreviewReady] = useState(false);
+  const chatRef = useRef(null);
+
+  useEffect(() => { if (onPreviewReady) onPreviewReady(previewReady); }, [previewReady]);
+
+  const handleCodeApply = () => {
+    if (chatRef.current && chatRef.current.handleCodeApply) chatRef.current.handleCodeApply();
+  };
+
+  return (
+    <div className="screen-enter flex h-full">
+      <div className="w-[42%] border-r border-kborder bg-white flex flex-col">
+        <ChatPanelWrapper ref={chatRef} prompt={prompt} onPreviewReady={setPreviewReady} onAppName={onAppName} onStepChange={setStep} />
+      </div>
+      <div className="flex-1 flex flex-col">
+        <PreviewPanel previewReady={previewReady} step={step} code={code} onCodeChange={setCode} onCodeApply={handleCodeApply} />
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
