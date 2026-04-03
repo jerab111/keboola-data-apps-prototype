@@ -202,7 +202,7 @@ function Btn({ variant = 'outline', size = 'md', onClick, children, className = 
 
 // ─── MinimalTopBar ───
 
-function MinimalTopBar({ screen, appName, onAppNameChange, previewReady, onNavigate, onToggleChat, chatVisible, deployState, hasChanges, onDeploy }) {
+function MinimalTopBar({ screen, appName, onAppNameChange, previewReady, onNavigate, onToggleChat, chatVisible, deployState, deployStep, isRedeploy, hasChanges, onDeploy }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nameVal, setNameVal] = useState(appName || '');
@@ -396,25 +396,37 @@ function MinimalTopBar({ screen, appName, onAppNameChange, previewReady, onNavig
                   )}
                   {deployState === 'deploying' && (
                     <div className="p-4" style={{ animation: 'fadeIn .2s ease' }}>
-                      <div className="text-[13px] font-semibold text-ktext mb-3">Publishing your app...</div>
-                      <div className="space-y-2.5">
-                        {[
-                          { label: 'Creating environment', done: true },
-                          { label: 'Installing dependencies', done: true },
-                          { label: 'Building app', active: true },
-                          { label: 'Going live', done: false },
-                        ].map((s, i) => (
-                          <div key={i} className="flex items-center gap-2.5 text-[11px]">
-                            {s.done ? (
-                              <span className="w-4 h-4 bg-kgreen rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0">✓</span>
-                            ) : s.active ? (
-                              <span className="w-4 h-4 border-2 border-kgray-200 border-t-kblue rounded-full flex-shrink-0" style={{ animation: 'spin 0.8s linear infinite' }} />
-                            ) : (
-                              <span className="w-4 h-4 border-2 border-kgray-200 rounded-full flex-shrink-0" />
-                            )}
-                            <span className={s.done ? 'text-kgreen font-medium' : s.active ? 'text-kblue font-medium' : 'text-kgray-400'}>{s.label}</span>
-                          </div>
-                        ))}
+                      <div className="text-[13px] font-semibold text-ktext mb-3">{isRedeploy ? 'Publishing changes...' : 'Publishing your app...'}</div>
+                      <div className="space-y-2">
+                        {(isRedeploy ? [
+                          { label: 'Syncing changes', desc: 'Updating app files', step: 1 },
+                          { label: 'Verifying data access', desc: 'Checking out.c-sales.kpis permissions', step: 2 },
+                          { label: 'Going live', desc: `Publishing to ${appSlug}.keboola.app`, step: 3 },
+                        ] : [
+                          { label: 'Preparing environment', desc: 'Setting up a secure sandbox for your app', step: 1 },
+                          { label: 'Installing dependencies', desc: 'Installing packages and Keboola SDK', step: 2 },
+                          { label: 'Connecting data sources', desc: 'Verifying access to out.c-sales.kpis', step: 3 },
+                          { label: 'Running checks', desc: 'Checking data permissions and app security', step: 4 },
+                          { label: 'Going live', desc: `Publishing to ${appSlug}.keboola.app`, step: 5 },
+                        ]).map((s, i) => {
+                          const done = deployStep >= s.step;
+                          const active = deployStep === s.step - 1;
+                          return (
+                            <div key={i} className="flex items-start gap-2.5 text-[11px]" style={done ? { animation: 'fadeIn .2s ease' } : {}}>
+                              {done ? (
+                                <span className="w-4 h-4 bg-kgreen rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0 mt-0.5">✓</span>
+                              ) : active ? (
+                                <span className="w-4 h-4 border-2 border-kgray-200 border-t-kblue rounded-full flex-shrink-0 mt-0.5" style={{ animation: 'spin 0.8s linear infinite' }} />
+                              ) : (
+                                <span className="w-4 h-4 border-2 border-kgray-200 rounded-full flex-shrink-0 mt-0.5" />
+                              )}
+                              <div>
+                                <div className={done ? 'text-kgreen font-medium' : active ? 'text-kblue font-medium' : 'text-kgray-400'}>{s.label}</div>
+                                {(done || active) && <div className="text-[10px] text-kgray-400 mt-0.5">{s.desc}</div>}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -422,13 +434,24 @@ function MinimalTopBar({ screen, appName, onAppNameChange, previewReady, onNavig
                     <div className="p-4" style={{ animation: 'fadeIn .2s ease' }}>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="w-6 h-6 bg-kgreen-light rounded-full flex items-center justify-center text-kgreen text-[12px] font-bold">✓</span>
-                        <div>
-                          <div className="text-[13px] font-semibold text-kgreen">App is live</div>
-                        </div>
+                        <div className="text-[13px] font-semibold text-kgreen">App is live</div>
                       </div>
                       <div className="bg-kgray-100 rounded-lg p-2.5 flex items-center gap-2 mb-3">
                         <span className="flex-1 font-mono text-[11px] text-kgray-600 truncate">https://{appSlug}.keboola.app</span>
                         <button className="text-[10px] text-kblue font-semibold hover:underline cursor-pointer flex-shrink-0">Copy</button>
+                      </div>
+                      <div className="bg-kgray-100 rounded-lg p-2.5 mb-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <svg className="w-3 h-3 text-kgray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                          <span className="text-kgray-500">Data source:</span>
+                          <span className="font-mono text-kgray-600">out.c-sales.kpis</span>
+                          <span className="text-kgray-400">· 45,230 rows</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <svg className="w-3 h-3 text-kgray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                          <span className="text-kgray-500">Access:</span>
+                          <span className="text-kgray-600">Anyone with the link</span>
+                        </div>
                       </div>
                       <a href="#" className="text-[11px] text-kblue font-semibold hover:underline flex items-center gap-1">
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -1316,14 +1339,32 @@ function App() {
   const [previewReady, setPreviewReady] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
   const [deployState, setDeployState] = useState('none'); // none | deploying | deployed
+  const [deployStep, setDeployStep] = useState(0); // 0-5 for deploy progress
   const [hasChanges, setHasChanges] = useState(false);
-  const navigate = useCallback((s) => { if (s === 'create') { setPreviewReady(false); setAppName(''); setChatVisible(true); setDeployState('none'); setHasChanges(false); } setScreen(s); }, []);
+  const [isRedeploy, setIsRedeploy] = useState(false);
+  const navigate = useCallback((s) => { if (s === 'create') { setPreviewReady(false); setAppName(''); setChatVisible(true); setDeployState('none'); setDeployStep(0); setHasChanges(false); setIsRedeploy(false); } setScreen(s); }, []);
 
   const handleDeploy = useCallback(() => {
+    const redeploy = deployState === 'deployed';
+    setIsRedeploy(redeploy);
     setDeployState('deploying');
     setHasChanges(false);
-    setTimeout(() => setDeployState('deployed'), 3000);
-  }, []);
+    setDeployStep(0);
+    if (redeploy) {
+      // Redeploy: faster, skip env + deps steps
+      setTimeout(() => setDeployStep(1), 300);
+      setTimeout(() => setDeployStep(2), 700);
+      setTimeout(() => setDeployStep(3), 1200);
+      setTimeout(() => { setDeployStep(4); setDeployState('deployed'); }, 1800);
+    } else {
+      // First deploy: full sequence
+      setTimeout(() => setDeployStep(1), 600);
+      setTimeout(() => setDeployStep(2), 1400);
+      setTimeout(() => setDeployStep(3), 2400);
+      setTimeout(() => setDeployStep(4), 3400);
+      setTimeout(() => { setDeployStep(5); setDeployState('deployed'); }, 4200);
+    }
+  }, [deployState]);
 
   const handleChange = useCallback(() => {
     if (deployState === 'deployed') setHasChanges(true);
@@ -1331,7 +1372,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen">
-      <MinimalTopBar screen={screen} appName={appName} onAppNameChange={setAppName} previewReady={previewReady} onNavigate={navigate} chatVisible={chatVisible} onToggleChat={() => setChatVisible(v => !v)} deployState={deployState} hasChanges={hasChanges} onDeploy={handleDeploy} />
+      <MinimalTopBar screen={screen} appName={appName} onAppNameChange={setAppName} previewReady={previewReady} onNavigate={navigate} chatVisible={chatVisible} onToggleChat={() => setChatVisible(v => !v)} deployState={deployState} deployStep={deployStep} isRedeploy={isRedeploy} hasChanges={hasChanges} onDeploy={handleDeploy} />
       <div className="flex-1 overflow-hidden">
         {screen === 'create' && <CreateEntry onNavigate={navigate} onSubmitPrompt={setPrompt} />}
         {screen === 'builder' && <AIBuilderConnected prompt={prompt} onNavigate={navigate} onAppName={setAppName} onPreviewReady={setPreviewReady} chatVisible={chatVisible} deployState={deployState} hasChanges={hasChanges} onChange={handleChange} />}
